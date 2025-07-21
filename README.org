@@ -1,0 +1,3 @@
+#+TITLE: LLMEngineerNotes
+
+These are just some notes I took while working through this [[https://www.udemy.com/course/become-an-llm-agentic-ai-engineer-14-day-bootcamp-2025][Udemy Course]].
