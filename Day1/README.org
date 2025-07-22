@@ -2,7 +2,6 @@
 #+PROPERTY: header-args:python :session day1
 #+PROPERTY: header-args:python+ :tangle main.py
 #+PROPERTY: header-args:python+ :results value
-#+PROPERTY: header-args:python+ :exports both
 #+PROPERTY: header-args:python+ :shebang "#!/usr/bin/env python"
 
 In this section we are going to build an Character AI Chatbot using OpenAI's
@@ -61,7 +60,7 @@ specifically designed for conversations.
   - content: What was actually said? (The text of the message).
 
 #+name: message
-#+begin_src python :results output
+#+begin_src python :results output :exports both
   # Let's define the message we want to send as the 'user'
   my_message = "Write a Poem to my mom Laila congratulating her for her 74th birthday!"
   print(f"Sending message to OpenAI: '{my_message}'")
@@ -71,14 +70,14 @@ specifically designed for conversations.
 : Sending message to OpenAI: 'Write a Poem to my mom Laila congratulating her for her 74th birthday!'
 
 #+name: firstapicall
-#+begin_src python :results none
+#+begin_src python :results none :exports both
   # Let's make an API call to OpenAI and send our message
   response = openai_client.chat.completions.create(model = "gpt-4o-mini",
                                                    messages = [{"role": "user", "content": my_message}])
 #+end_src
 
 #+name: firstreply
-#+begin_src python :results output
+#+begin_src python :results output :exports both
   # Let's obtain the AI's reply from the response object
   # The response contains lots of info; we need to dig into it to find the text.
   # It usually looks like: response -> choices -> [first choice] -> message -> content
@@ -130,7 +129,7 @@ Happy birthday, dear Laila, may your heart be at peace.
   change the model from model="gpt-4o-mini" to model="gpt-4o"
 
   #+name: practice1
-  #+begin_src python :results output
+  #+begin_src python :results output :exports both
     my_message = "What is the tallest mountain in the world?"
     response = openai_client.chat.completions.create(model = "gpt-4o",
                                                      messages = [{"role": "user", "content": my_message}])
@@ -149,7 +148,7 @@ Happy birthday, dear Laila, may your heart be at peace.
 
 * Understanding the response structure
   #+name: responsestructure
-  #+begin_src python :tangle no
+  #+begin_src python :tangle no :exports both
     response
   #+end_src
 
