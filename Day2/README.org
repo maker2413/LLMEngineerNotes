@@ -1,0 +1,53 @@
+#+TITLE: Day 2
+#+PROPERTY: header-args:python :session day2
+#+PROPERTY: header-args:python+ :tangle main.py
+#+PROPERTY: header-args:python+ :results value
+#+PROPERTY: header-args:python+ :shebang "#!/usr/bin/env python"
+
+In this project, we will build Calorie Tracker, an app that uses AI vision to
+identify food from a picture and estimate its nutritional information!
+
+Imagine taking a photo of your lunch and instantly getting calorie counts and
+macronutrient breakdowns.
+
+Here are some of the key learning outcomes from this project:
+- Communicate with powerful AI vision models using their APIs.
+- Master the art of Prompt Engineering including context, instruction, input, &
+  output indicator
+- Understand the difference between zero-shot, few-shot, and chain-of-thought
+  prompting.
+- Discover how to convert an image into a base64 encoded string for OpenAI API
+  calls.
+
+#+BEGIN_SRC elisp :exports none :results none
+  (setq org-babel-python-command (concat
+                                  (file-name-directory (or load-file-name (buffer-file-name)))
+                                  ".venv/bin/python"))
+#+END_SRC
+
+#+begin_src python :exports none :results none
+  # This file was generated from the README.org found in this directory
+#+end_src
+
+#+begin_src python :results none
+  from openai import OpenAI
+#+end_src
+
+We will want to load our API key just like we did in Day1:
+#+begin_src python :results output :exports both
+  import os
+
+  # This will be used to load the API key from the .env file
+  from dotenv import load_dotenv
+  load_dotenv()
+
+  # Get the OpenAI API keys from environment variables
+  openai_api_key = os.getenv("OPENAI_API_KEY")
+
+  # Let's configure the OpenAI Client using our key
+  openai_client = OpenAI(api_key = openai_api_key)
+  print("OpenAI client successfully configured.")
+
+  # Let's view the first few characters in the key
+  print(openai_api_key[:15])
+#+end_src

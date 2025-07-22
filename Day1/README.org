@@ -40,6 +40,7 @@ API.
   print("Key begins with:", openai_api_key[:5])
 #+end_src
 
+This results in:
 #+RESULTS: apikey
 : OpenAI client successfully configured.
 : Key begins with: sk-WO
@@ -66,9 +67,12 @@ specifically designed for conversations.
   print(f"Sending message to OpenAI: '{my_message}'")
 #+end_src
 
+This outputs:
 #+RESULTS: message
 : Sending message to OpenAI: 'Write a Poem to my mom Laila congratulating her for her 74th birthday!'
 
+Now that we have successfully read in out API key and created our message let's
+use it to make our first API call to OpenAI:
 #+name: firstapicall
 #+begin_src python :results none :exports both :tangle no
   # Let's make an API call to OpenAI and send our message
@@ -76,6 +80,7 @@ specifically designed for conversations.
                                                    messages = [{"role": "user", "content": my_message}])
 #+end_src
 
+Now let's print out the contents of our response:
 #+name: firstreply
 #+begin_src python :results output :exports both :tangle no
   # Let's obtain the AI's reply from the response object
@@ -88,6 +93,7 @@ specifically designed for conversations.
   print(f"{ai_reply_content}")
 #+end_src
 
+This results in:
 #+RESULTS: firstreply
 #+begin_example
 
@@ -142,6 +148,7 @@ Happy birthday, dear Laila, may your heart be at peace.
      print(f"{ai_reply_content}")
    #+end_src
 
+   This gives us:
    #+RESULTS: practice1
    : 
    : 🤖 AI's Reply: 
@@ -149,8 +156,9 @@ Happy birthday, dear Laila, may your heart be at peace.
    : The tallest mountain in the world is Mount Everest, which is part of the Himalayas on the border between Nepal and the Tibet Autonomous Region of China. Its peak reaches an elevation of 8,848.86 meters (29,031.7 feet).
 
 * Understanding the response structure
+  Now let's breakdown the structure of our response:
   #+name: responsestructure
-  #+begin_src python :tangle no :exports both
+  #+begin_src python :tangle no :exports results
     response
   #+end_src
 
@@ -264,6 +272,7 @@ Happy birthday, dear Laila, may your heart be at peace.
     print(f"{ai_character_reply}")
   #+end_src
 
+  Our response is:
   #+RESULTS: sherlockinteraction
   : 
   : Received response!
@@ -302,6 +311,7 @@ Happy birthday, dear Laila, may your heart be at peace.
      print(f"{ai_character_reply}")
    #+end_src
 
+   Yoda's response:
    #+RESULTS: practice3
    : 
    : Received response!
