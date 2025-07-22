@@ -1,0 +1,4 @@
+#+TITLE: Day 1
+
+In this section we are going to build an Character AI Chatbot using OpenAI's
+API.
