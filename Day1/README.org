@@ -19,7 +19,7 @@ API.
 #+end_src
 
 #+name: apikey
-#+begin_src python :results output
+#+begin_src python :results output :exports both
   # Let's import "os" module, which stands for "Operating System"
   # The os module in Python provides a way to interact with the operating system for things like:
   # (1) accessing Environment Variables
