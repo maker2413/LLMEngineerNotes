@@ -1,8 +1,8 @@
 #+TITLE: Day 1
 #+PROPERTY: header-args:python :session day1
 #+PROPERTY: header-args:python+ :tangle main.py
-#+PROPERTY: header-args:python+ :exports both
 #+PROPERTY: header-args:python+ :results value
+#+PROPERTY: header-args:python+ :exports both
 #+PROPERTY: header-args:python+ :shebang "#!/usr/bin/env python"
 
 In this section we are going to build an Character AI Chatbot using OpenAI's
