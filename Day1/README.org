@@ -1,4 +1,46 @@
 #+TITLE: Day 1
+#+PROPERTY: header-args:python :session day1
+#+PROPERTY: header-args:python+ :tangle main.py
+#+PROPERTY: header-args:python+ :exports both
+#+PROPERTY: header-args:python+ :results value
+#+PROPERTY: header-args:python+ :shebang "#!/usr/bin/env python"
 
 In this section we are going to build an Character AI Chatbot using OpenAI's
 API.
+
+#+BEGIN_SRC elisp :exports none :results none
+  (setq org-babel-python-command (concat
+                                  (file-name-directory (or load-file-name (buffer-file-name)))
+                                  ".venv/bin/python"))
+#+END_SRC
+
+#+begin_src python :results none
+  from openai import OpenAI
+#+end_src
+
+#+name: apikey
+#+begin_src python :results output
+  # Let's import "os" module, which stands for "Operating System"
+  # The os module in Python provides a way to interact with the operating system for things like:
+  # (1) accessing Environment Variables
+  # (2) Creating, renaming, and deleting files/folders.
+  import os
+
+  # This will be used to load the API key from the .env file
+  from dotenv import load_dotenv
+  load_dotenv()
+
+  # Get the OpenAI API keys from environment variables
+  openai_api_key = os.getenv("OPENAI_API_KEY")
+
+  # Let's configure the OpenAI Client using our key
+  openai_client = OpenAI(api_key = openai_api_key)
+  print("OpenAI client successfully configured.")
+
+  # Let's view the first few characters in the key
+  print("Key begins with:", openai_api_key[:5])
+#+end_src
+
+#+RESULTS: apikey
+: OpenAI client successfully configured.
+: Key begins with: sk-WO
