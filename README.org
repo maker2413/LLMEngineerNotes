@@ -6,6 +6,7 @@ To begin with it can helpful to install the following tools:
 - *lmstudio*: https://lmstudio.ai/
   - Also in lm studio download and LLM to use like Llama for instance
 - *anaconda*: https://www.anaconda.com/download/success
+- *uv*: https://github.com/astral-sh/uv
 
 This course was broken up into days and I have notes on the following days:
 - [[./Day1/README.org][Day 1]]

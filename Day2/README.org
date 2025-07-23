@@ -49,5 +49,618 @@ We will want to load our API key just like we did in Day1:
   print("OpenAI client successfully configured.")
 
   # Let's view the first few characters in the key
-  print(openai_api_key[:15])
+  print("Key begins with:", openai_api_key[:15])
 #+end_src
+
+This results in:
+#+RESULTS:
+: OpenAI client successfully configured.
+: Key begins with: sk-WOOzJ30J0lBF
+
+Now let's create a simple helper function for printing:
+#+name: printmarkdown
+#+begin_src python :results none
+  # Define a helper function named "print_markdown" to display markdown
+  from IPython.display import display, Markdown  
+
+  def print_markdown(text):
+      """Displays text as Markdown in Jupyter."""
+      display(Markdown(text))
+#+end_src
+
+Now that we have this helper function let's start playing with images. To begin
+let's import the Pillow library:
+#+begin_src python :results none
+  # Let's try loading and displaying a sample image
+  # Before sending images to OpenAI API, we need to learn how to load and view them in our notebook
+  # We'll use the Pillow library (imported as PIL) for this task
+
+  # Import Pillow for image handling
+  from PIL import Image
+#+end_src
+
+Now we can use the Pillow library to load our image:
+#+begin_src python :results output :exports both
+  # IMPORTANT: Replace this with the path to your downloaded image file
+  # Make sure the image file is in the same directory as the notebook
+  image_filename = "images/food_image.jpg"
+
+  # Use Pillow's Image.open() to load the image from the file
+  img = Image.open(image_filename)
+  print(f"Image '{image_filename}' loaded successfully.")
+  print(f"Format: {img.format}")
+  print(f"Size: {img.size}")
+  print(f"Mode: {img.mode}")
+
+  # Use IPython.display to show the image directly in the notebook output
+  display(img)
+
+  # Keep the loaded image object in a variable for later use
+  image_to_analyze = img
+#+end_src
+
+This gives us:
+#+RESULTS:
+: Image 'images/food_image.jpg' loaded successfully.
+: Format: JPEG
+: Size: (600, 400)
+: Mode: RGB
+: <PIL.JpegImagePlugin.JpegImageFile image mode=RGB size=600x400 at 0x7FC2B16A6120>
+
+* PRACTICE OPPORTUNITY:
+  Download another food image (e.g., a banana, a slice of pizza) and save it to
+  your project folder. Update the image_filename variable in the code cell above
+  to the new filename and run the cell again. Does it load and display
+  correctly?
+
+  Look at the printed output for the Format, Size, and Mode of your images.
+
+** Solution:
+   For this I just downloaded ~images/steak_frites.jpg~.
+   #+name: solution
+   #+begin_src python :results output :exports both :tangle no
+     # Use Pillow's Image.open() to load the image from the file
+     img2 = Image.open("images/steak_frites.jpg")
+     print(f"Image images/steak_frites.jpg loaded successfully.")
+     print(f"Format: {img2.format}")
+     print(f"Size: {img2.size}")
+     print(f"Mode: {img2.mode}")
+
+     # Use IPython.display to show the image directly in the notebook output
+     display(img2)
+   #+end_src
+
+   Here is the output of that image:
+   #+RESULTS: solution
+   : Image images/steak_frites.jpg loaded successfully.
+   : Format: JPEG
+   : Size: (1244, 700)
+   : Mode: RGB
+   : <PIL.JpegImagePlugin.JpegImageFile image mode=RGB size=1244x700 at 0x7FC2B156AFD0>
+
+* What is prompt engineering?
+  Prompt engineering is the practice of designing and optimizing text input to
+  generative AI models to obtain desired responses. It is the art of
+  communicating with a generative AI model.
+
+** Prompt engineering techniques:
+   Here are the prompt engineering techniques we will cover:
+
+*** Zero-shot
+    Zero-shot prompting refers to the ability of a generative AI model to generate
+    responses without being provided with any prior examples. The model relies on
+    its broad general knowledge learned from its training data to complete the
+    task.
+
+    An example of this would be the following user prompt:
+    #+begin_example
+      "Tell me the sentiment of the following headline and categorize it as either
+      positive, negative, or netural:
+
+      New airline between Seattle and San Francisco offers a great opportunity
+      for both passengers and investors."
+    #+end_example
+
+    Resulting in the following output:
+    #+begin_example
+      Positive
+    #+end_example
+
+    Here we can see that we didn't have to provide the model any further input
+    data to get our desired output.
+
+*** Few-Shot
+    Few-shot prompting (in-context learning) involves providing a few example
+    pairs of input and desired output to the generative AI model to guide its
+    responses.
+
+    An example of this would be the following user prompt:
+    #+begin_example
+      "Tell me the sentiment of the following. Here are some examples:
+
+      Apple stock declined 2% today
+      Answer: Negative
+
+      Tesla stock gained 5% after successful self-driving demo
+      Answer: Positive
+
+      OpenAI expanded its userbase to 100 million
+      Answer:"
+    #+end_example
+
+    Resulting in the following output:
+    #+begin_example
+      Positive
+    #+end_example
+
+    With few-shot prompting examples or additional input is provided as an
+    example for the model to reference to make it's output.
+
+*** Chain-of-Thought
+    Chain-of-thought prompting is a technique that improves the reasoning
+    abilities of AI models by breaking down complex questions or tasks into
+    smaller manageable steps.
+
+    It mimics how humans' reason and solve problems by systematically breaking
+    down the decision-making process.
+
+    An example of how this might be done with few-shot prompting could be:
+    #+begin_example
+      "Q: Sarah has 10 pencils. She gives 4 pencils to her friend and buys a pack of 5
+      more pencils. How many pencils does Sarah have now?
+
+      A: The answer is 11.
+
+      Q: The library had 50 books. They lent 15 books to students and received 7 more
+      books as a donation. How many books are in the library now?"
+    #+end_example
+
+    Which could result in something like:
+    #+begin_example
+      "A: The answer is 57."
+    #+end_example
+
+    This can happen due to Hallucinations. The idea with chain-of-thought is we
+    enforce reasoning patterns similar to human thought.
+
+    An example of this would be a user prompt like this instead:
+    #+begin_example
+      "Q: Sarah has 10 pencils. She gives 4 pencils to her friend and buys a pack of 5
+      more pencils. How many pencils does Sarah have now?
+
+      A: Sarah started with 10 pencils. She gave away 4 pencils, leaving her with 6.
+      Then she bought 5 more pencils, so 6 + 5 = 11. The answer is 11.
+
+      Q: The library had 50 books. They lent 15 books to students and received 7 more
+      books as a donation. How many books are in the library now?"
+    #+end_example
+
+    Which could result in a response like this:
+    #+begin_example
+      "A: The library started with 50 books. They lent 15 books, so 50 - 15 = 35.
+      Then they received 7 more books, so 35 + 7 = 42. The answer is 42."
+    #+end_example
+
+    This behavior can help to reduce hallucinations and setup guard rails for
+    the model to stick to.
+
+* PRACTICE OPPORTUNITY 2:
+  BlackRock private equity investment firm receives financial reports, earnings
+  call transcripts, and analyst notes on potential portfolio companies. The goal
+  is to automate the extraction of key financial metrics, market sentiment, and
+  strategic risks. You have received an earnings call transcript for a potential
+  acquisition company, "SolidPower Inc.".
+
+  Draft a prompt that classifies the CEO's tone as optimistic, cautious, or
+  concerning based on key phrases. Design the prompt to have context,
+  instruction, input, and output indicator.
+
+  Highlight the top 3 phrases that influenced this classification and include
+  actionable recommendations.
+
+  Test the prompt using any generative AI model such as ChatGPT, CoPilot,
+  Gemini, or Claude. (No code is required for this practice opportunity).
+
+  Here is the transcript of the earnings call:
+  #+begin_example
+    "Operator: Good morning, and welcome to Solid Power's Fourth Quarter 2024
+    Earnings Conference Call. At this time, all participants are in a listen-only
+    mode. After management’s prepared remarks, we will open the call for questions.
+    I would now like to turn the call over to our CEO, Mark Reynolds. Please go
+    ahead. CEO Mark Reynolds: Thank you, and good morning, everyone. I’m pleased to
+    share our results for Q4 2024 and our outlook for the year ahead. Despite
+    ongoing macroeconomic uncertainties, Solid Power posted strong revenue
+    growth of 8.2% year-over-year, reaching $420 million for the quarter. This marks
+    our ninth consecutive quarter of revenue expansion, driven by continued demand
+    for high-performance air suspension systems and strategic investments in supply
+    chain resilience.
+
+    Key Highlights:
+    - Gross margin expanded to 42.1%, reflecting improved production efficiency and
+      favourable pricing strategies.
+    - EBITDA came in at $78.5 million, a 6.5% increase from last year.
+    - Net income for the quarter was $24.8 million, or $1.35 per share, up from
+      $1.20 per share in Q3 2024.
+    - Cash flow from operations totalled $50 million, reinforcing our strong
+      liquidity position."
+  #+end_example
+
+** Solution 2
+   Here is how I structured the prompt:
+   #+begin_example
+     Context:
+     You are a senior financial analyst with expertise in private equity.
+
+     Instruction:
+     Carefully review the provided earnings call transcript of Solid Power. Based on
+     the language, sentiment, and key financial and operational signals shared by the
+     CEO, classify the CEO's tone as one of the following: Optimistic, Cautious, or
+     Concerning. Your analysis should identify specific language cues, strategic
+     outlooks, and underlying business sentiment.
+
+     Input:
+     "Operator: Good morning, and welcome to Solid Power's Fourth Quarter 2024
+     Earnings Conference Call. At this time, all participants are in a listen-only
+     mode. After management’s prepared remarks, we will open the call for questions.
+     I would now like to turn the call over to our CEO, Mark Reynolds. Please go
+     ahead. CEO Mark Reynolds: Thank you, and good morning, everyone. I’m pleased to
+     share our results for Q4 2024 and our outlook for the year ahead. Despite
+     ongoing macroeconomic uncertainties, Solid Power posted strong revenue
+     growth of 8.2% year-over-year, reaching $420 million for the quarter. This marks
+     our ninth consecutive quarter of revenue expansion, driven by continued demand
+     for high-performance air suspension systems and strategic investments in supply
+     chain resilience.
+
+     Key Highlights:
+     - Gross margin expanded to 42.1%, reflecting improved production efficiency and
+       favourable pricing strategies.
+     - EBITDA came in at $78.5 million, a 6.5% increase from last year.
+     - Net income for the quarter was $24.8 million, or $1.35 per share, up from
+       $1.20 per share in Q3 2024.
+     - Cash flow from operations totalled $50 million, reinforcing our strong
+       liquidity position."
+
+     Output Indicator:
+     Tone Classification: (Optimistic / Cautious / Concerning)
+     Key Supporting Evidence: (Direct quotes from the transcript that support the
+     classification)
+     Actionable Recommendation: (Brief recommendation for investors or stakeholders
+     based on the CEO’s tone and disclosed information)
+   #+end_example
+
+   When this prompt is ran through various AI models they are all result in
+   similar output.
+
+* Image Recognition
+  Now that we have learned how to better prompt let's get back to the task at
+  hand: Image Recognition! Let the magic begin!
+
+  Let's send our loaded image to OpenAI's GPT Vision model and ask a simple
+  question: "What food is in this image?"
+
+  OpenAI requires images to be sent either as a URL or as a base64-encoded
+  string. We'll use base64 encoding for local files. The image is part of the
+  messages list.
+
+  Let's import some helpful libraries for this task:
+  #+begin_src python :results none
+    # The io module in Python provides tools for working with streams of data
+    # like reading from or writing to files in memory
+    import io  
+
+    # Used for encoding images for OpenAI's API
+    import base64
+  #+end_src
+
+  Let's then create another helper function to base64 encode images:
+  #+begin_src python :results none
+    # This function converts an image into a special text format (called base64)
+    # This is used if we want to send an image to OpenAI’s API
+
+    # This function works with two types of inputs: 
+    # (1) A file path: a string that tells the function where the image is stored on your computer.
+    # (2) An image object: a photo already loaded in memory using the PIL library (Python Imaging Library).
+
+    def encode_image_to_base64(image_path_or_pil):
+        if isinstance(image_path_or_pil, str):  # If it's a file path
+            # Check if the file exists
+            if not os.path.exists(image_path_or_pil):
+                raise FileNotFoundError(f"Image file not found at: {image_path_or_pil}")
+            with open(image_path_or_pil, "rb") as image_file:
+                return base64.b64encode(image_file.read()).decode("utf-8")
+                
+        elif isinstance(image_path_or_pil, Image.Image):  # If it's a PIL Image object
+            buffer = io.BytesIO()
+            image_format = image_path_or_pil.format or "JPEG"  # Default to JPEG if format unknown
+            image_path_or_pil.save(buffer, format=image_format)
+            return base64.b64encode(buffer.getvalue()).decode("utf-8")
+        else:
+            raise ValueError("Input must be a file path (str) or a PIL Image object.")
+  #+end_src
+
+  Let's also write a helper function to query the OpenAI vision model:
+  #+begin_src python :results none
+    # Let's define a function that queries OpenAI's vision model with an image
+    def query_openai_vision(client, image, prompt, model = "gpt-4o", max_tokens = 100):
+        """
+        Function to query OpenAI's vision model with an image
+        
+        Args:
+            client: The OpenAI client
+            image: PIL Image object to analyze
+            prompt: Text prompt to send with the image
+            model: OpenAI model to use (default: gpt-4o)
+            max_tokens: Maximum tokens in response (default: 100)
+            
+        Returns:
+            The model's response text or an error message
+        """
+
+        # Encode the image to base64
+        base64_image = encode_image_to_base64(image)
+        
+        try:
+            # Construct the message payload
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            },
+                        },
+                    ],
+                }
+            ]
+
+            # Make the API call
+            response = client.chat.completions.create(
+                model = model,
+                messages = messages,
+                max_tokens = max_tokens,
+            )
+
+            # Extract the response
+            return response.choices[0].message.content
+        
+        except Exception as e:
+            return f"Error calling API: {e}"
+  #+end_src
+
+  Now we just need a quality prompt for our task:
+  #+name: visionprompt
+  #+begin_src python :results output :exports both
+    # Let's define our text prompt that will be sent with the image
+    food_recognition_prompt = """
+    Context: I'm analyzing a food image for a calorie-tracking application.
+    Instruction: Please identify the food item in this image.
+    Input: [The image I'm about to share]
+    Output: Provide the name of the food, a brief description of what you see, and if possible, mention its typical ingredients or nutritional profile.
+    """
+    print(f"{food_recognition_prompt}")
+  #+end_src
+
+  This gives us:
+  #+RESULTS: visionprompt
+  : 
+  : Context: I'm analyzing a food image for a calorie-tracking application.
+  : Instruction: Please identify the food item in this image.
+  : Input: [The image I'm about to share]
+  : Output: Provide the name of the food, a brief description of what you see, and if possible, mention its typical ingredients or nutritional profile.
+
+  Finally we can send out prompt and image to the vision model and get a
+  response:
+  #+name: visionresponse
+  #+begin_src python :results output :exports both
+    # Let's call the function and send it an image!
+    print("🤖 Querying OpenAI Vision...")
+    openai_description = query_openai_vision(
+        openai_client, 
+        image_to_analyze, 
+        food_recognition_prompt
+    )
+    print_markdown(openai_description)
+    print(openai_description)
+  #+end_src
+
+  #+RESULTS: visionresponse
+  : 🤖 Querying OpenAI Vision...
+  : <IPython.core.display.Markdown object>
+  : The image shows a dish featuring grilled or baked salmon, accompanied by asparagus and cherry tomatoes. Lemon slices and dill sprigs are used as garnishes on the plate.
+  : 
+  : **Description and Ingredients:**
+  : 1. **Salmon**: A popular fish known for its rich, oily texture and flavor. It is often high in protein and omega-3 fatty acids.
+  : 2. **Asparagus**: A green vegetable that is low in calories and a source of vitamins A, C, and K.
+  : 3
+
+* PRACTICE OPPORTUNITY 3:
+  Modify the food_recognition_prompt variable in the code above. Ask a different
+  question, like "What is the main color of the food in this image?" or "Is this
+  food likely sweet or savory?". Run the cell again and perform a sanity check
+  on OpenAI's API response.
+
+** Solution 3:
+   Here is my solution to the practice opportunity:
+   #+name: practice3
+   #+begin_src python :results output :exports both :tangle no
+     # Let's call the function and send it an image!
+     print("🤖 Querying OpenAI Vision...")
+     openai_description2 = query_openai_vision(
+         openai_client, 
+         image_to_analyze, 
+         """
+     Context: I'm analyzing a food image for a calorie-tracking application.
+     Instruction: Determine if this food is sweet or savory and list the colors of the food
+     Input: [The image I'm about to share]
+     Output: A brief description of colors and if it's sweet or savory
+     """
+     )
+     print_markdown(openai_description2)
+     print(openai_description2)
+   #+end_src
+
+   #+RESULTS: practice3
+   : 🤖 Querying OpenAI Vision...
+   : <IPython.core.display.Markdown object>
+   : The food is savory. The colors include orange (salmon), green (asparagus and garnish), red (cherry tomatoes), and yellow (lemon slices).
+
+* Obtain the number of calories using vision API
+  Now that we can identify the food in a provided image it is time to start
+  providing the calories and nutrition information.
+
+  Let's begin by crafting a new prompt:
+  #+begin_src python :results none
+    # Let's define a structured prompt to ensure consistent model output
+    structured_nutrition_prompt = """
+    # Nutritional Analysis Task
+
+    ## Context
+    You are a nutrition expert analyzing food images to provide accurate nutritional information.
+
+    ## Instructions
+    Analyze the food item in the image and provide estimated nutritional information based on your knowledge.
+
+    ## Input
+    - An image of a food item
+
+    ## Output
+    Provide the following estimated nutritional information for a typical serving size or per 100g:
+    - food_name (string)
+    - serving_description (string, e.g., '1 slice', '100g', '1 cup')
+    - calories (float)
+    - fat_grams (float)
+    - protein_grams (float)
+    - confidence_level (string: 'High', 'Medium', or 'Low')
+
+    ,**IMPORTANT:** Respond ONLY with a single JSON object containing these fields. Do not include any other text, explanations, or apologies. The JSON keys must match exactly: "food_name", "serving_description", "calories", "fat_grams", "protein_grams", "confidence_level". If you cannot estimate a value, use `null`.
+
+    Example valid JSON response:
+    {
+      "food_name": "Banana",
+      "serving_description": "1 medium banana (approx 118g)",
+      "calories": 105.0,
+      "fat_grams": 0.4,
+      "protein_grams": 1.3,
+      "confidence_level": "High"
+    }
+    """
+  #+end_src
+
+  We can then get our new response:
+  #+begin_src python :results output :exports both
+    # Let's call OpenAI API with the image and the new structured prompt
+    openai_nutrition_result = query_openai_vision(client = openai_client,
+                                                  image = image_to_analyze,
+                                                  prompt = structured_nutrition_prompt,)
+
+    print_markdown(openai_nutrition_result)
+    print(openai_nutrition_result)
+  #+end_src
+
+  #+RESULTS:
+  : <IPython.core.display.Markdown object>
+  : {
+  :   "food_name": "Grilled Salmon with Asparagus",
+  :   "serving_description": "1 plate (approx 200g of salmon, 100g of asparagus)",
+  :   "calories": 370.0,
+  :   "fat_grams": 20.0,
+  :   "protein_grams": 40.0,
+  :   "confidence_level": "Medium"
+  : }
+
+* PRACTICE OPPORTUNITY 4:
+  Modify the structured_nutrition_prompt to include more fields
+  (e.g. sugar_grams or fiber_grams).
+
+  Try using an image of pizza slice (simple) or a complex dish (like a mixed
+  salad) or a packaged food item. How well does OpenAI's API estimate
+  nutritional value? Do they lower their confidence level?
+
+** Solution 4:
+   Here is my solution to the practice opportunity:
+   #+name: practice4
+   #+begin_src python :results output :exports both :tangle no
+     # Let's define a structured prompt to ensure consistent model output
+     structured_nutrition_prompt = """
+     # Nutritional Analysis Task
+
+     ## Context
+     You are a nutrition expert analyzing food images to provide accurate nutritional information.
+
+     ## Instructions
+     Analyze the food item in the image and provide estimated nutritional information based on your knowledge.
+
+     ## Input
+     - An image of a food item
+
+     ## Output
+     Provide the following estimated nutritional information for a typical serving size or per 100g:
+     - food_name (string)
+     - serving_description (string, e.g., '1 slice', '100g', '1 cup')
+     - calories (float)
+     - fat_grams (float)
+     - protein_grams (float)
+     - sugar_grams (float)
+     - fiber_grams (float)
+     - confidence_level (string: 'High', 'Medium', or 'Low')
+
+     ,**IMPORTANT:** Respond ONLY with a single JSON object containing these fields. Do not include any other text, explanations, or apologies. The JSON keys must match exactly: "food_name", "serving_description", "calories", "fat_grams", "protein_grams", "confidence_level". If you cannot estimate a value, use `null`.
+
+     Example valid JSON response:
+     {
+       "food_name": "Banana",
+       "serving_description": "1 medium banana (approx 118g)",
+       "calories": 105.0,
+       "fat_grams": 0.4,
+       "protein_grams": 1.3,
+       "confidence_level": "High"
+     }
+     """
+
+     # Let's try the steak frites!
+     image_filename = "images/steak_frites.jpg"
+
+     # Use Pillow's Image.open() to load the image from the file
+     img = Image.open(image_filename)
+
+     # Keep the loaded image object in a variable for later use
+     image_to_analyze = img
+
+     # Let's call OpenAI API with the image and the new structured prompt
+     openai_nutrition_result = query_openai_vision(client = openai_client,
+                                                   image = image_to_analyze,
+                                                   prompt = structured_nutrition_prompt,)
+
+     print_markdown(openai_nutrition_result)
+     print(openai_nutrition_result)
+   #+end_src
+
+   #+RESULTS: practice4
+   #+begin_example
+   <IPython.core.display.Markdown object>
+   ```json
+   {
+     "food_name": "Steak with French Fries",
+     "serving_description": "1 plate",
+     "calories": 800.0,
+     "fat_grams": 50.0,
+     "protein_grams": 40.0,
+     "sugar_grams": 2.0,
+     "fiber_grams": 4.0,
+     "confidence_level": "Medium"
+   }
+   ```
+   #+end_example
+
+* Summary
+  In this section we:
+  - Learned how to develop intelligent, AI-powered applications that can process
+    and interpret image data using OpenAI's vision capabilities.
+  - Understood that prompt engineering is both a skill and an art. Well
+    structured prompts are essential for generating consistent and accurate
+    outputs from AI models.
+  - Gained practical skills in defining Python functions to perform specific
+    tasks effectively and efficiently.
