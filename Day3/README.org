@@ -1,0 +1,17 @@
+#+TITLE: Day 3
+#+PROPERTY: header-args:python :session day3
+#+PROPERTY: header-args:python+ :tangle main.py
+#+PROPERTY: header-args:python+ :results value
+#+PROPERTY: header-args:python+ :shebang "#!/usr/bin/env python"
+
+In this project we are going to build an adaptive AI tutor.
+
+#+BEGIN_SRC elisp :exports none :results none
+  (setq org-babel-python-command (concat
+                                  (file-name-directory (or load-file-name (buffer-file-name)))
+                                  ".venv/bin/python"))
+#+END_SRC
+
+#+begin_src python :exports none :results none
+  # This file was generated from the README.org found in this directory
+#+end_src

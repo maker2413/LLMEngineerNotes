@@ -11,3 +11,4 @@ To begin with it can helpful to install the following tools:
 This course was broken up into days and I have notes on the following days:
 - [[./Day1/README.org][Day 1]]
 - [[./Day2/README.org][Day 2]]
+- [[./Day3/README.org][Day 3]]
