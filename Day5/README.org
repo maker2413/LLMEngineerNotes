@@ -1,0 +1,140 @@
+#+TITLE: Day 5
+#+PROPERTY: header-args:python :session day5
+#+PROPERTY: header-args:python+ :tangle main.py
+#+PROPERTY: header-args:python+ :results value
+#+PROPERTY: header-args:python+ :shebang "#!/usr/bin/env python"
+
+In previous sections we have used closed source paid models to learning about
+prompt and interacting with LLMs. Today we are going to start our venture into
+the land of Open Source models available on Hugging Face.
+
+#+BEGIN_SRC elisp :exports none :results none
+  (setq org-babel-python-command (concat
+                                  (file-name-directory (or load-file-name (buffer-file-name)))
+                                  ".venv/bin/python"))
+#+END_SRC
+
+#+begin_src python :exports none :results none
+  # This file was generated from the README.org found in this directory
+#+end_src
+
+We will be building a question answering system where users can upload PDFs and
+chat with their content. Some of the key learning outcomes from this section
+will be:
+- Learn what Hugging Face is by exploring the Hub and understanding its role in
+  the AI ecosystem.
+- Use the Transformers library to work with Hugging Face models in Python.
+- Load open source models by downloading pre-trained model weights and
+  tokenizers from Hugging Face.
+- Run models efficiently using quantization techniques like bitsandbytes to fit
+  them within Colab's free GPU memory.
+- Read PDF content by extracting text using Python libraries such as ~pypdf~.
+- Apply basic prompt engineering techniques to structure questions for models
+  based on input text.
+- Build a user interface with Gradio to interact with your document Q&A system
+  and switch between models.
+- Learn the difference between pipeline(), AutoTokenizer, and
+  AutoModelForCasualLM.
+
+* What is Hugging Face?
+  Hugging Face has become a central hub for the Machine Learning community,
+  especially for LLMs and Natural Language Processing (NLP).
+
+  On Hugging Face you can find:
+  - *Models*: Thousands of pre-trained models for various tasks (text
+    generation, translation, image classification, etc).
+  - *Datasets*: A vast collection of datasets used to train and evaluate models.
+  - *Spaces*: Demos of AI models hosted on HF infrastructure (like Gradio apps).
+
+  If you would like to see you can visit Hugging Face [[https://huggingface.co/models][here]].
+
+  Why use Open Source models from Hugging Face?
+  - *Control*: You run the model yourself, giving you more control over data
+    privacy and customization.
+  - *Cost*: Running smaller models can be cheaper than constantly hitting paid
+    APIs, especially during development.
+  - *Transparency*: You can often study the model architecture and sometimes
+    even the training data.
+  - *Community*: Access to a huge variety of models fine-tuned for specific
+    tasks.
+  - *Offline Use*: Once downloaded, models can potentially be run without an
+    internet connection.
+
+* Setup
+  Now that we have gotten a brief introduction to Hugging Face and the models it
+  provides we can begin setting up the python libraries we are going to use for
+  this section and setup our API key for Hugging Face.
+
+  There are a few new libraries we are going to be using in this section
+  compared to previous sections:
+   - *transformers*: The core Hugging Face library for models and tokenizers.
+   - *accelerate*: Helps run models efficiently across different hardware (like
+     GPUs) and use less memory.
+   - *bitsandbytes*: Enables model quantization (like loading in 4-bit or
+     8-bit), drastically reducing memory usage. Essential for running decent
+     models on free Colab GPUs!
+   - *torch*: The underlying deep learning framework (PyTorch).
+   - *pypdf*: A library to easily extract text from PDF files.
+
+   Let's begin by importing some of our libraries:
+   #+begin_src python :results none
+    import torch  # PyTorch, the backend for transformers
+    import pypdf  # For reading PDFs
+    import gradio as gr  # For building the UI
+    from IPython.display import display, Markdown  # For nicer printing in notebooks
+  #+end_src
+
+  Some models on the Hugging Face Hub are "gated," meaning you need to agree to
+  their terms and conditions before downloading. Logging in allows the
+  transformers library to download these models if needed.
+
+** Get a Hugging Face Token:
+   To get a Hugging Face API token:
+   - Go to [[huggingface.co]].
+   - Sign up or log in.
+   - Click your profile picture (top right) -> Settings -> Access Tokens.
+   - Create a new token (a 'read' role is usually sufficient).
+   - Copy the generated token. Treat this like a password!
+
+   To Login with our token we are going to do a spin on how we loaded in API
+   keys in the previous sections:
+   #+begin_src python :results none
+     import os
+
+     from huggingface_hub import login
+     from dotenv import load_dotenv
+
+     # Load environment variables from the .env file
+     load_dotenv()
+     print("Attempting to load API keys from .env file...")
+
+     # Load Keys
+     hf_token = os.getenv("HF_API_KEY")
+
+     # Login
+     login(token=hf_token)
+   #+end_src
+
+** Checking GPU
+   At this point we will want to make sure that we have proper GPU power to
+   continue before we run any models. We are going to accomplish this with a
+   simple check like this:
+   #+name: gpucheck
+   #+begin_src python :results output :exports both
+     # Check if GPU is available (essential for running these models)
+     # Why GPU is Important: LLMs involve billions of calculations (matrix multiplications).
+     # GPUs are designed for massive parallel processing, making these calculations thousands of times faster than a standard CPU.
+     # Running these models on a CPU would take an impractically long time (hours for a single answer instead of seconds/minutes).
+     if torch.cuda.is_available():
+         print(f"GPU detected: {torch.cuda.get_device_name(0)}")
+         # Set default device to GPU
+         torch.set_default_device("cuda")
+         print("PyTorch default device set to CUDA (GPU).")
+     else:
+         print("WARNING: No GPU detected. Running these models on CPU will be extremely slow!")
+         print("Make sure 'GPU' is selected in Runtime > Change runtime type.")
+   #+end_src
+
+   #+RESULTS: gpucheck
+   : WARNING: No GPU detected. Running these models on CPU will be extremely slow!
+   : Make sure 'GPU' is selected in Runtime > Change runtime type.
