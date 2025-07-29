@@ -1,0 +1,545 @@
+#+TITLE: Day 4
+#+PROPERTY: header-args:python :session day4
+#+PROPERTY: header-args:python+ :tangle main.py
+#+PROPERTY: header-args:python+ :results value
+#+PROPERTY: header-args:python+ :shebang "#!/usr/bin/env python"
+
+In this project we are going to build landing pages with OpenAI API, Claude, and
+Gemini.
+
+#+BEGIN_SRC elisp :exports none :results none
+  (setq org-babel-python-command (concat
+                                  (file-name-directory (or load-file-name (buffer-file-name)))
+                                  ".venv/bin/python"))
+#+END_SRC
+
+#+begin_src python :exports none :results none
+  # This file was generated from the README.org found in this directory
+#+end_src
+
+In our previous projects we have explored interacting with OpenAI models and
+building Gradio interfaces. Now let's broaden our horizons by working with
+multiple AI providers!
+
+Different AI models have unique strengths, weaknesses, and
+"personalities". Sometimes one model might give a better result for a specific
+task than another.
+
+In this project will generate HTML landing pages for a startup using three major
+AI/LLM providers:
+- OpenAI
+- Google Gemini
+- Anthropic Claude
+We will then compare the generated HTML structures.
+
+Some of the key learning outcomes will be:
+- Learn how to setup and configure APIs for frontier LLMs
+- Leverage frontier models to generate code and HTML pages and save the outputs
+  in ~.html~ files.
+- Compare the math and creative capabilities of the frontier models.
+- Compare LLMs using leaderboards (Vellum and Chatbot Arena) and Perform blind
+  tests.
+
+* How to compare LLMs?
+  When deciding between models there are a couple of things to consider:
+  - *Open source or Closed source*: Open-source (e.g. Llama) gives you the
+    flexibility, full control, and lower cost if self-hosted. Closed
+    (e.g. GPT-4) usually offers better performance and ease of use via APIs.
+  - *Context length*: How much input/output the model can handle in one go. For
+    long documents or multi-turn conversations, longer context is better
+    (e.g. Gemini 2.5 Flash has 1M Window).
+  - *Release date and knowledge cut-off*: Newer models are trained on more
+    recent data (useful for current events).
+  - *Parameters*: More parameters usually = more capacity (e.g. GPT-3 has
+    175B). But bigger isn't always better for performance or cost-efficiency
+    matters.
+  - *Training tokens*: Refers to how much text the model was trained on. More
+    tokens = broader language understanding and generalization.
+
+  A great resource for some AI benchmarks is [[https://www.vellum.ai/llm-leaderboard][vellum.ai]].
+
+* Perform a blind test
+  We looked at vellum leaderboards to get some "trust me bro" benchmarks, but
+  can we actually trust a bar graph on a screen fully? No. That is why now we
+  are going to pit some models against each other in the [[https://lmarena.ai/][lmarena]].
+
+  In the lmarena you can pit two models of your choice against each other and
+  vote on which one you think performed better on the task you provided. You can
+  also view the leaderboards defined by the community. The other thing you can
+  do though is "battle" two models against each other. In a battle you won't be
+  able to see which model is which until after you vote on which one is better.
+
+* Setting up API keys
+  Going forward we are actually going to test the big three models locally. In
+  the previous sections we used the OpenAI API to interact with ChatGPT. Going
+  forward we will also need API keys for Gemini and Claude so before continuing
+  head over to [[https://aistudio.google.com/app/apikey][Gemini]] and [[https://console.anthropic.com][Claude]] and sign up and get your API keys.
+
+  Once you have your 3 API keys set in the ~.env~ file we can do something
+  similar to what we have done in the previous sections to load in these api
+  keys:
+  #+name: loadapikeys
+  #+begin_src python :results output :exports both
+    # Import necessary libraries
+    import os
+    import warnings
+    from IPython.display import display, Markdown, HTML  # For displaying HTML directly
+    from dotenv import load_dotenv
+
+    # Import specific clients/modules for each provider
+    from openai import OpenAI
+    import google.generativeai as genai
+    from anthropic import Anthropic
+
+    # Load environment variables from the .env file
+    load_dotenv()
+    print("Attempting to load API keys from .env file...")
+
+    # Load Keys
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    google_api_key = os.getenv("GOOGLE_API_KEY")
+    anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+
+    # Configure Clients
+
+    # OpenAI Client (Refresher)
+    openai_client = OpenAI(api_key = openai_api_key)
+    print(f"OpenAI Client configured (Key starts with: {openai_api_key[:5]}...).")
+
+    # Google Gemini Client
+    genai.configure(api_key = google_api_key)
+    gemini_model = genai.GenerativeModel("gemini-2.5-pro")  # Most powerful model from Google
+    print(f"Google Gemini Client configured (Key starts with: {google_api_key[:5]}...). Model: gemini-2.5-pro-exp-03-25")
+
+    # Anthropic Claude Client
+    claude_client = Anthropic(api_key = anthropic_api_key)
+    print(f"Anthropic Claude Client configured (Key starts with: {anthropic_api_key[:7]}...).")
+  #+end_src
+
+  This gives us:
+  #+RESULTS: loadapikeys
+  : Attempting to load API keys from .env file...
+  : OpenAI Client configured (Key starts with: sk-WO...).
+  : Google Gemini Client configured (Key starts with: AIzaS...). Model: gemini-2.5-pro-exp-03-25
+  : Anthropic Claude Client configured (Key starts with: sk-ant-...).
+
+  We will also create that same helper function to print we have used before:
+  #+begin_src python :results none
+    # Helper function to display markdown nicely ---
+    def print_markdown(text):
+        """Displays text as Markdown in Jupyter."""
+        display(Markdown(text))
+  #+end_src
+
+  We also will make a new helper function to display html code:
+  #+begin_src python :results none
+    def display_html_code(provider_name, html_content):
+        """Displays generated HTML code block nicely."""
+        print_markdown(f"### Generated HTML from {provider_name}:")
+        # Display as a formatted code block
+        display(Markdown(f"```html\n{html_content}\n```"))
+  #+end_src
+
+  So to begin testing these models we will test out some of their math
+  capabilities with a prompt like so:
+  #+begin_src python :results none
+    # Let's test the Math capabilities of these 3 LLMs
+    math_prompt = "A father is 36 years old, and his son is 6 years old. In how many years will the father be exactly five times as old as his son?"
+  #+end_src
+
+  Now let's let em rip!:
+  #+name: mathtest
+  #+begin_src python :results output :exports both
+    # Let's test OpenAI API (we have done this many times already)
+    response = openai_client.chat.completions.create(model = "gpt-4o", 
+                                                     messages = [{"role": "user", 
+                                                                  "content": math_prompt}],
+                                                     temperature = 0.5)
+    print("=================================================================")
+    print("ChatGPT says:")
+    print(response.choices[0].message.content)
+
+    # Let's test Google Gemini Model
+    response = gemini_model.generate_content(math_prompt)
+    print("=================================================================")
+    print("Gemini says:")
+    print(response.text)
+
+    # Let's test the Claude Sonnet Model by Anthropic
+    response = claude_client.messages.create(model = "claude-3-7-sonnet-20250219",
+            max_tokens = 20000,  # Set a max limit for the generated output
+            messages = [{"role": "user", 
+                       "content": math_prompt}])
+
+    # Extract the text content from the response object
+    print("=================================================================")
+    print("Claude says:")
+    print(response.content[0].text)
+  #+end_src
+
+  This gives something like this:
+  #+RESULTS: mathtest
+  #+begin_example
+  =================================================================
+  ChatGPT says:
+  Let's denote the number of years from now as \( x \).
+
+  Currently, the father's age is 36 years, and the son's age is 6 years. In \( x \) years, the father's age will be \( 36 + x \), and the son's age will be \( 6 + x \).
+
+  We want to find \( x \) such that the father's age is exactly five times the son's age:
+
+  \[
+  36 + x = 5(6 + x)
+  \]
+
+  Expanding the right side of the equation gives:
+
+  \[
+  36 + x = 30 + 5x
+  \]
+
+  Subtract \( x \) from both sides to isolate terms involving \( x \):
+
+  \[
+  36 = 30 + 4x
+  \]
+
+  Subtract 30 from both sides:
+
+  \[
+  6 = 4x
+  \]
+
+  Divide both sides by 4 to solve for \( x \):
+
+  \[
+  x = \frac{6}{4} = \frac{3}{2}
+  \]
+
+  Since \( x \) must be a whole number (as we are counting years), it seems there was an error in the initial conditions or question setup, as the father can never be exactly five times the son's age in whole years given the current ages.
+
+  Thus, the solution is that there is no integer value of \( x \) such that the father will be exactly five times as old as his son.
+  =================================================================
+  Gemini says:
+  Here's how to solve this step-by-step:
+
+  Let 'y' be the number of years from now.
+
+  1.  **Set up the future ages:**
+      ,*   Father's future age: 36 + y
+      ,*   Son's future age: 6 + y
+
+  2.  **Create the equation based on the condition** (father will be five times as old as the son):
+      ,*   36 + y = 5 * (6 + y)
+
+  3.  **Solve the equation for y:**
+      ,*   36 + y = 30 + 5y
+      ,*   Subtract 'y' from both sides: 36 = 30 + 4y
+      ,*   Subtract 30 from both sides: 6 = 4y
+      ,*   Divide by 4: y = 6 / 4 = 1.5
+
+  In **1.5 years**, the father will be five times as old as his son.
+
+  ,**Let's check the answer:**
+  ,*   In 1.5 years, the father will be 36 + 1.5 = **37.5** years old.
+  ,*   In 1.5 years, the son will be 6 + 1.5 = **7.5** years old.
+  ,*   Is 37.5 five times 7.5? Yes, 7.5 * 5 = 37.5.
+  =================================================================
+  Claude says:
+  I need to find when the father will be exactly 5 times as old as his son.
+
+  Let me define:
+  - Current father's age = 36 years
+  - Current son's age = 6 years
+  - Let's call the unknown number of years from now = x
+
+  After x years:
+  - Father's age will be 36 + x
+  - Son's age will be 6 + x
+
+  According to the problem, the father will be exactly 5 times as old as his son:
+  36 + x = 5(6 + x)
+  36 + x = 30 + 5x
+  36 - 30 = 5x - x
+  6 = 4x
+  x = 1.5
+
+  Therefore, in 1.5 years (or 1 year and 6 months), the father will be exactly 5 times as old as his son.
+
+  I can verify:
+  - Father will be 36 + 1.5 = 37.5 years old
+  - Son will be 6 + 1.5 = 7.5 years old
+  - 37.5 ÷ 7.5 = 5
+
+  So the answer is 1.5 years.
+  #+end_example
+
+We could also test their creativity with a prompt like this:
+#+begin_src python :results none :tangle no
+  # Let's test their creativity!
+  creative_prompt = "Write a funny Poem to my niece Rose for turning 1 year old!"
+#+end_src
+
+I'll leave that one up to you though.
+
+* DEFINING THE STARTUP IDEA & PROMPT
+  We need a consistent prompt to give each AI model. This prompt should clearly
+  state:
+  - The context or personality we want the AI to take (e.g., You are an expert
+    web developer).
+  - The instruction: generate HTML code for a landing page.
+  - The output indicator required: specifically, the full HTML structure for an
+    ~index.html~ file.
+
+  For out prompt we will go with something like this:
+  #+begin_src python :results output :exports both
+    # Define the startup name and concept
+    startup_name = "ConnectGenius"
+    startup_concept = "An intelligent CRM system that uses AI to analyze customer interactions, predict needs, and automate personalized follow-ups. Focus on improving customer retention and sales efficiency for businesses of all sizes."
+
+    # Define the core prompt for the LLMs
+    # We explicitly ask for HTML code and specify the file name 'index.html'
+    html_prompt = f"""
+    You are a helpful AI assistant acting as a front-end web developer.
+
+    Your task is to generate the complete HTML code for a simple, clean, and professional-looking landing page (index.html) for a new startup.
+
+    Startup Name: {startup_name}
+    Concept: {startup_concept}
+
+    Please generate ONLY the full HTML code, starting with <!DOCTYPE html> and ending with </html>.
+    Create a modern, visually appealing landing page with the following:
+
+    -- Don't include images in the code. Raw html code with inline css for styling.
+
+    1. A sleek header with the startup name in a bold, modern font and a compelling tagline
+    2. A hero section with a clear value proposition and call-to-action button
+    3. A features section highlighting 3-4 key benefits with icons or simple visuals
+    4. A "How it Works" section with numbered steps
+    5. A testimonials section with fictional customer quotes
+    6. A pricing section with at least two tiers
+    7. A professional footer with navigation links and social media icons
+
+    Use inline CSS for styling with a modern color palette (primary, secondary, and accent colors). 
+    Include responsive design elements, subtle animations, and whitespace for readability.
+    Emphasize AI capabilities, ease of use, and business benefits throughout the copy.
+    Focus on conversion-optimized marketing messages that highlight pain points and solutions.
+
+    Do not include any explanations before or after the code block. Just provide the raw HTML code.
+    """
+
+    print("**Core Prompt defined for the LLMs:**")
+    print(f"> {html_prompt}")  # Print the start of the prompt to verify
+  #+end_src
+
+  This makes our prompt:
+  #+RESULTS:
+  #+begin_example
+  ,**Core Prompt defined for the LLMs:**
+  > 
+  You are a helpful AI assistant acting as a front-end web developer.
+
+  Your task is to generate the complete HTML code for a simple, clean, and professional-looking landing page (index.html) for a new startup.
+
+  Startup Name: ConnectGenius
+  Concept: An intelligent CRM system that uses AI to analyze customer interactions, predict needs, and automate personalized follow-ups. Focus on improving customer retention and sales efficiency for businesses of all sizes.
+
+  Please generate ONLY the full HTML code, starting with <!DOCTYPE html> and ending with </html>.
+  Create a modern, visually appealing landing page with the following:
+
+  -- Don't include images in the code. Raw html code with inline css for styling.
+
+  1. A sleek header with the startup name in a bold, modern font and a compelling tagline
+  2. A hero section with a clear value proposition and call-to-action button
+  3. A features section highlighting 3-4 key benefits with icons or simple visuals
+  4. A "How it Works" section with numbered steps
+  5. A testimonials section with fictional customer quotes
+  6. A pricing section with at least two tiers
+  7. A professional footer with navigation links and social media icons
+
+  Use inline CSS for styling with a modern color palette (primary, secondary, and accent colors). 
+  Include responsive design elements, subtle animations, and whitespace for readability.
+  Emphasize AI capabilities, ease of use, and business benefits throughout the copy.
+  Focus on conversion-optimized marketing messages that highlight pain points and solutions.
+
+  Do not include any explanations before or after the code block. Just provide the raw HTML code.
+  #+end_example
+
+* Generating Websites
+  Now that we have a quality prompt in place let's begin generating some
+  websites. We will begin with OpenAI since we already are quite familiar with
+  their API:
+  #+name: openaisite
+  #+begin_src python :results output :exports both
+    # Let's generate HTML using OpenAI API, we will use gpt-4o model
+
+    openai_html_output = "<!-- OpenAI generation not run or failed -->"  # Default message
+
+    print("## Calling OpenAI API...")
+    try:
+        response = openai_client.chat.completions.create(
+            model = "gpt-4o",  # A capable and fast model suitable for this task
+            messages = [
+                # No system prompt needed here as instructions are in the user prompt
+                {"role": "user", "content": html_prompt}
+            ],
+            temperature = 0.5,  # A bit deterministic for code generation
+        )
+        openai_html_output = response.choices[0].message.content
+
+        # Sometimes OpenAI might wrap the code in markdown fences
+        # Let's try to strip that if present
+        if openai_html_output.strip().startswith("```html"):
+            lines = openai_html_output.strip().splitlines()
+            openai_html_output = "\n".join(lines[1:-1]).strip()
+        else:
+            openai_html_output = openai_html_output.strip()
+
+        # Display the generated HTML code
+        display_html_code("OpenAI (gpt-4o)", openai_html_output)
+
+        # Let's Save the output to a file
+        file_path = "openai_landing_page.html"
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(openai_html_output)
+        print(f"Successfully saved OpenAI output to `{file_path}`")
+
+
+    except Exception as e:
+        print(f"Error calling OpenAI API: {e}")
+        openai_html_output = f"<!-- Error calling OpenAI API: {e} -->"
+  #+end_src
+
+  We can see the following output:
+  #+RESULTS: openaisite
+  : ## Calling OpenAI API...
+  : <IPython.core.display.Markdown object>
+  : <IPython.core.display.Markdown object>
+  : Successfully saved OpenAI output to `openai_landing_page.html`
+
+  We can see that it generated the following site: [[./openai_landing_page.html][here]].
+
+  Personally I think this site is "okay" at best. Let's see now if Gemini looks
+  any better:
+  #+name: geminisite
+  #+begin_src python :results output :exports both
+    # Generate HTML using Gemini
+
+    gemini_html_output = "<!-- Gemini generation not run or failed -->"  # Default message
+
+    print("## Calling Google Gemini API...")
+    try:
+        # Gemini API call structure
+        response = gemini_model.generate_content(
+            html_prompt,
+        )
+
+        # Extract the text content
+        # Sometimes, Gemini might wrap the code in markdown ```html ... ```
+        # Let's try to strip that if present
+        raw_output = response.text
+        if raw_output.strip().startswith("```html"):
+            # Remove the first line (```html) and the last line (```)
+            lines = raw_output.strip().splitlines()
+            gemini_html_output = "\n".join(lines[1:-1]).strip()
+        else:
+            gemini_html_output = raw_output.strip()  # Assume it's raw HTML if no markdown fences
+
+        # Display the generated HTML code
+        display_html_code("Google Gemini (gemini-2.0-flash)", gemini_html_output)
+
+        # --- Save the output to a file ---
+        file_path = "gemini_landing_page.html"
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(gemini_html_output)
+        print(f"Successfully saved Gemini output to `{file_path}`")
+
+
+    except Exception as e:
+        print(f"Error calling Google Gemini API: {e}")
+        # More detailed error handling for Gemini if needed
+        gemini_html_output = f"<!-- Error calling Google Gemini API: {e} -->"
+  #+end_src
+
+  This gives us the following output:
+  #+RESULTS: geminisite
+  : ## Calling Google Gemini API...
+  : <IPython.core.display.Markdown object>
+  : <IPython.core.display.Markdown object>
+  : Successfully saved Gemini output to `gemini_landing_page.html`
+
+  We can see that it generated the following site: [[./gemini_landing_page.html][here]].
+
+  I would say that Gemini made a MUCH better site than the OpenAI model we
+  used. As a final test let's see what Claude can do for us:
+  #+name: anthropicsite
+  #+begin_src python :results output :exports both
+    # Generate HTML using Anthropic Claude
+
+    claude_html_output = "<!-- Claude generation not run or failed -->"  # Default message
+
+    print("## Calling Anthropic Claude API...")
+
+    claude_model_name = "claude-3-7-sonnet-20250219"
+    print(f"(Using model: {claude_model_name})")
+
+    try:
+        response = claude_client.messages.create(
+            model = claude_model_name,
+            max_tokens = 20000,  # Set a max limit for the generated output
+            # System prompt can sometimes help guide Claude's persona/role
+            # system="You are a front-end web developer generating HTML code.",
+            messages = [{"role": "user", "content": html_prompt}],
+        )
+
+        # Extract the text content from the response object
+        raw_output = response.content[0].text
+        if raw_output.strip().startswith("```html"):
+            lines = raw_output.strip().splitlines()
+            claude_html_output = "\n".join(lines[1:-1]).strip()
+        else:
+            claude_html_output = raw_output.strip()
+
+        # Display the generated HTML code
+        display_html_code(f"Anthropic Claude ({claude_model_name})", claude_html_output)
+
+        # --- Save the output to a file ---
+        file_path = "claude_landing_page.html"
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(claude_html_output)
+        print(f"Successfully saved Claude output to `{file_path}`")
+
+    except Exception as e:
+        print(f"Error calling Anthropic Claude API: {e}")
+        claude_html_output = f"<!-- Error calling Anthropic Claude API: {e} -->"
+  #+end_src
+
+  This gives the following output:
+  #+RESULTS: anthropicsite
+  : ## Calling Anthropic Claude API...
+  : (Using model: claude-3-7-sonnet-20250219)
+  : <IPython.core.display.Markdown object>
+  : <IPython.core.display.Markdown object>
+  : Successfully saved Claude output to `claude_landing_page.html`
+
+  We can see that it generated the following site: [[./claude_landing_page.html][here]].
+
+  Personally I would say that Claude did the best out of the three, but this
+  could be easily explained by the fact that Claude was specifically trained on
+  software engineering tools and concepts.
+
+* Summary
+  In this section through playing with the big three models we have learned the
+  following:
+  - Frontier models like GPT, Claude, and Gemini differ significantly in both
+    performance and cost so choosing the right one is as much an art as it is a
+    science.
+  - With the power of generative AI, you can now create stunning HTML landing
+    pages with no coding required.
+  - Large Language Models are compelling with their ability to code, solve
+    complex math problems, and generate highly creative content.
+  - You can compare state-of-the-art models using Leaderboards (Vellum) and
+    perform blind tests using Chatbot Arena.
