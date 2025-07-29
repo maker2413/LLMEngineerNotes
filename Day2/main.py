@@ -17,7 +17,7 @@ openai_client = OpenAI(api_key = openai_api_key)
 print("OpenAI client successfully configured.")
 
 # Let's view the first few characters in the key
-print("Key begins with:", openai_api_key[:15])
+print("Key begins with:", openai_api_key[:5])
 
 # Define a helper function named "print_markdown" to display markdown
 from IPython.display import display, Markdown  

@@ -49,13 +49,13 @@ We will want to load our API key just like we did in Day1:
   print("OpenAI client successfully configured.")
 
   # Let's view the first few characters in the key
-  print("Key begins with:", openai_api_key[:15])
+  print("Key begins with:", openai_api_key[:5])
 #+end_src
 
 This results in:
 #+RESULTS:
 : OpenAI client successfully configured.
-: Key begins with: sk-WOOzJ30J0lBF
+: Key begins with: sk-WO
 
 Now let's create a simple helper function for printing:
 #+name: printmarkdown
@@ -466,6 +466,7 @@ This gives us:
     print(openai_description)
   #+end_src
 
+  Output:
   #+RESULTS: visionresponse
   : 🤖 Querying OpenAI Vision...
   : <IPython.core.display.Markdown object>
@@ -502,6 +503,7 @@ This gives us:
      print(openai_description2)
    #+end_src
 
+   And we get:
    #+RESULTS: practice3
    : 🤖 Querying OpenAI Vision...
    : <IPython.core.display.Markdown object>
@@ -560,6 +562,7 @@ This gives us:
     print(openai_nutrition_result)
   #+end_src
 
+  This gives us:
   #+RESULTS:
   : <IPython.core.display.Markdown object>
   : {
@@ -638,6 +641,7 @@ This gives us:
      print(openai_nutrition_result)
    #+end_src
 
+   The output I got was:
    #+RESULTS: practice4
    #+begin_example
    <IPython.core.display.Markdown object>

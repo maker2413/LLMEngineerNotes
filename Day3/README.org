@@ -4,7 +4,8 @@
 #+PROPERTY: header-args:python+ :results value
 #+PROPERTY: header-args:python+ :shebang "#!/usr/bin/env python"
 
-In this project we are going to build an adaptive AI tutor.
+In this project we are going to build an adaptive AI tutor that has a web
+interface. We are going to accomplish by using ~gradio~.
 
 #+BEGIN_SRC elisp :exports none :results none
   (setq org-babel-python-command (concat
@@ -15,3 +16,418 @@ In this project we are going to build an adaptive AI tutor.
 #+begin_src python :exports none :results none
   # This file was generated from the README.org found in this directory
 #+end_src
+
+The goal of building a tutor is to have the ability to deliver multi-level
+explanations. A key feature of this tutor will be the complexity slider,
+allowing users to adjust the explanation level from "Explain like I'm 5" to
+expert level.
+
+We will be accomplishing this with a user-friendly web interface using ~gradio~, a
+powerful library for building interactive applications. Finally we'll implement
+streaming responses to enhance the user experience by displaying answers in real
+time.
+
+Gradio is a library that allows you to quickly demo your machine learning model
+with a friendly web interface so that anyone can use it anywhere.
+
+Let's begin by importing the libraries we will need and load in our API key like
+before:
+#+name: initialsetup
+#+begin_src python :results output :exports both
+  import os
+  from IPython.display import display, Markdown
+  from openai import OpenAI
+  from dotenv import load_dotenv
+
+  # Load environment variables from the .env file
+  load_dotenv()
+
+  # Retrieve the OpenAI API key from environment variables
+  openai_api_key = os.getenv("OPENAI_API_KEY")
+
+  print("OpenAI API Key loaded successfully.")
+  # Let's view the first few characters to confirm it's loaded (DO NOT print the full key)
+  print(f"Key starts with: {openai_api_key[:5]}...")
+
+  # Configure the OpenAI Client using the loaded key
+  openai_client = OpenAI(api_key=openai_api_key)
+  print("OpenAI client configured.")
+#+end_src
+
+We can see that we have loaded our API key like before:
+#+RESULTS: initialsetup
+: OpenAI API Key loaded successfully.
+: Key starts with: sk-WO...
+: OpenAI client configured.
+
+We can also create the ~print_markdown~ function we used on [[../Day2/README.org][Day2]]:
+#+name: printmarkdownfunc
+#+begin_src python :results none
+  # Define a helper function to display markdown nicely
+  def print_markdown(text):
+      """Displays text as Markdown in Jupyter."""
+      display(Markdown(text))
+#+end_src
+
+Before we build our user interface, let's create the core python function that
+will act as our AI tutor:
+#+name: aitutorfunc
+#+begin_src python :results none
+  # Let's define the Python function to get a response from the AI Tutor
+  def get_ai_tutor_response(user_question):
+      """
+      Sends a question to the OpenAI API, asking it to respond as an AI Tutor.
+
+      Args:
+          user_question (str): The question asked by the user.
+
+      Returns:
+          str: The AI's response, or an error message.
+      """
+      # Define the system prompt - instructions for the AI's personality and role
+      system_prompt = "You are a helpful and patient AI Tutor. Explain concepts clearly and concisely."
+
+      try:
+          # Make the API call to OpenAI
+          response = openai_client.chat.completions.create(
+              model = "gpt-4o-mini",  # A fast and capable model suitable for tutoring
+              messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_question}],
+              temperature = 0.7,  # Allows for some creativity but keeps responses focused
+          )
+          # Extract the answer content
+          ai_response = response.choices[0].message.content
+          return ai_response
+
+      except Exception as e:
+          # Handle potential errors during the API call
+          print(f"An error occurred: {e}")
+          return f"Sorry, I encountered an error trying to get an answer: {e}"
+#+end_src
+
+Before we go further let's test this function by asking it to explain python
+functions to us:
+#+name: firstquery
+#+begin_src python :results output :exports both :tangle no
+  # Let's test our function with a sample question
+  test_question = "Could you explain the concept of functions in Python and their purpose in programming?"
+  print(f"Asking the AI Tutor: '{test_question}'")
+
+  # Call the function and store the response
+  tutor_answer = get_ai_tutor_response(test_question)
+
+  # Print the AI's response
+  print("\n🤖 AI Tutor's Response:\n")
+  print(tutor_answer)
+#+end_src
+
+It gives us this:
+#+RESULTS: firstquery
+#+begin_example
+Asking the AI Tutor: 'Could you explain the concept of functions in Python and their purpose in programming?'
+
+🤖 AI Tutor's Response:
+
+Certainly! Functions in Python are a fundamental concept that helps organize and structure your code. Here’s a concise overview:
+
+### What is a Function?
+
+A **function** is a block of reusable code that performs a specific task. Functions can take inputs (known as parameters), perform operations, and return outputs (results). They help break down complex problems into smaller, manageable parts.
+
+### Purpose of Functions:
+
+1. **Reusability**: Once a function is defined, it can be used multiple times throughout the code without needing to rewrite it. This reduces redundancy.
+
+2. **Modularity**: Functions help organize code into logical sections, making it easier to read, maintain, and debug.
+
+3. **Abstraction**: Functions allow you to hide complex implementation details. You can use a function without knowing how it works internally, as long as you understand its inputs and outputs.
+
+4. **Improved Readability**: Well-named functions can make code more understandable. They describe what the code is doing, which helps others (and your future self) grasp its purpose quickly.
+
+### Defining a Function in Python
+
+In Python, you define a function using the `def` keyword, followed by the function name and parentheses (which may include parameters). Here’s the basic structure:
+
+```python
+def function_name(parameters):
+    # Code block
+    return result
+```
+
+### Example of a Function
+
+Here’s a simple example of a function that adds two numbers:
+
+```python
+def add_numbers(a, b):
+    sum = a + b
+    return sum
+```
+
+### Using the Function
+
+You can call (or invoke) the function by using its name and passing the required arguments:
+
+```python
+result = add_numbers(3, 5)
+print(result)  # Output: 8
+```
+
+### Conclusion
+
+Functions are essential in programming because they enhance code organization, promote reusability, and improve clarity. By utilizing functions, you can write cleaner, more efficient, and maintainable code.
+#+end_example
+
+So now that we know we can prompt our tutor and get pretty decent explanations
+let's begin playing around with ~gradio~. We will begin by building a user
+interface with ~gradio~ that doesn't implement streaming. Let's begin with an
+import:
+#+begin_src python :results none
+  import gradio as gr
+#+end_src
+
+*Core Gradio Concept*: gr.Interface
+
+The gr.Interface class is the main way to build UIs in Gradio. You tell it:
+- ~fn~: The Python function to call (our ~get_ai_tutor_response~).
+- ~inputs~: What kind of input component(s) the user will use (e.g., a text
+  box). We use ~gr.Textbox()~.
+- ~outputs~: What kind of output component(s) will display the result (e.g.,
+  another text box). We use ~gr.Textbox()~.
+- ~title~, ~description~: Optional text to display on the UI.
+
+Finally, we call the ~.launch()~ method on our interface object to start the web
+server and display the UI.
+
+#+name: gradiointerface
+#+begin_src python :results output :exports both :tangle no
+  # Let's define the Gradio interface
+  # fn: The function to wrap (our AI tutor function)
+  # inputs: A component for the user to type their question
+  # outputs: A component to display the AI's answer
+  # title/description: Text for the UI heading
+  ai_tutor_interface_simple = gr.Interface(
+      fn = get_ai_tutor_response,
+      inputs = gr.Textbox(lines = 2, placeholder = "Ask the AI Tutor anything...", label = "Your Question"),
+      outputs = gr.Textbox(label = "AI Tutor's Answer"),
+      title = "🤖 Simple AI Tutor",
+      description = "Enter your question below and the AI Tutor will provide an explanation. Powered by OpenAI.",
+      allow_flagging = "never",  # Disables the flagging feature for simplicity
+  )
+
+  # Launch the interface!
+  # This will typically create a link (or display inline in environments like Google Colab/Jupyter)
+  # You can interact with this UI directly.
+  print("Launching Gradio Interface...")
+  ai_tutor_interface_simple.launch()
+#+end_src
+
+This launches our web application, which we can reach on the following port:
+#+RESULTS: gradiointerface
+: Launching Gradio Interface...
+: * Running on local URL:  http://127.0.0.1:7860
+: * To create a public link, set `share=True` in `launch()`.
+
+If you are following along at home you will see you have a very simple web
+application similar to the ones seen at [[gradio.app]]. You might, however, have
+noticed that you have to wait for the AI to finish generating the entire
+response before you can see anything. For longer answers this can feel quite
+slow.
+
+We will now improve this by "streaming". Just like we learned with the OpenAI
+API directly, we can process the response chunk-by-chunk as it arrives. Gradio
+natively supports python generator functions for streaming output to text boxes!
+
+To accomplish this, let's make a helper function:
+#+name: streamfunc
+#+begin_src python :results none
+  # Let's create a new function that streams the response
+  def stream_ai_tutor_response(user_question):
+      """
+      Sends a question to the OpenAI API and streams the response as a generator.
+
+      Args:
+          user_question (str): The question asked by the user.
+
+      Yields:
+          str: Chunks of the AI's response.
+      """
+
+      system_prompt = "You are a helpful and patient AI Tutor. Explain concepts clearly and concisely."
+
+      try:
+          # Note: stream = True is the key change here!
+          stream = openai_client.chat.completions.create(
+              model = "gpt-4o-mini",
+              messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_question}],
+              temperature = 0.7,
+              stream = True,  # Enable streaming (magic happens here)
+          )
+
+          # Iterate through the response chunks
+          full_response = ""  # Keep track of the full response if needed later
+
+          # Loop through each chunk of the response as it arrives
+          for chunk in stream:
+              # Check if this chunk contains actual text content
+              if chunk.choices[0].delta and chunk.choices[0].delta.content:
+                  # Extract the text from this chunk
+                  text_chunk = chunk.choices[0].delta.content
+                  # Add this chunk to our growing response
+                  full_response += text_chunk
+                  # 'yield' is special - it sends the current state of the response to Gradio
+                  # This makes the text appear to be typing in real-time
+                  yield full_response
+
+      except Exception as e:
+          print(f"An error occurred during streaming: {e}")
+          yield f"Sorry, I encountered an error: {e}"
+#+end_src
+
+We can now retest our application to see how streaming works:
+#+name: gradiostreaming
+#+begin_src python :results output :exports both :tangle no
+  # Now, let's create a Gradio interface using the Streaming function
+  # Notice the fn points to the new 'stream_ai_tutor_response' function. The rest is the same!
+  ai_tutor_interface_streaming = gr.Interface(
+      fn = stream_ai_tutor_response,  # Use the generator function
+      inputs = gr.Textbox(lines = 2, placeholder = "Ask the AI Tutor anything...", label = "Your Question"),
+      outputs = gr.Markdown(
+          label = "AI Tutor's Answer (Streaming)", container = True, height = 250
+      ),  # Output is still a Markdown (it renders as HTML), container lets it be scrollable and height is set to 250px ( for better visibility)
+      title = "🤖 AI Tutor with Streaming",
+      description = "Enter your question. The answer will appear word-by-word!",
+      allow_flagging = "never",
+  )
+
+  # Launch the streaming interface
+  print("Launching Streaming Gradio Interface...")
+  ai_tutor_interface_streaming.launch()
+#+end_src
+
+This launches our web application, which we can reach on the following port:
+#+RESULTS: gradiostreaming
+: Launching Gradio Interface...
+: * Running on local URL:  http://127.0.0.1:7860
+: * To create a public link, set `share=True` in `launch()`.
+
+Now that we have beautifully streamed text let's add the final piece of our
+tutor project... The explanation level slider!
+
+Our AI Tutor is helpful, but what if the user needs a simpler explanation, or
+perhaps a more in-depth one? We can add a control for this!
+
+Gradio provides various input components. Let's use a ~gr.Slider~ to let the
+user choose an explanation level. Let's begin by declaring our 5 explanation
+levels we want to support:
+#+name: explanationlevel
+#+begin_src python :results none
+  # Define the mapping for explanation levels
+  explanation_levels = {
+      1: "like I'm 5 years old",
+      2: "like I'm 10 years old",
+      3: "like a high school student",
+      4: "like a college student",
+      5: "like an expert in the field",
+  }
+#+end_src
+
+Now let's create one final helper function that streams our responses with our
+explanation level:
+#+name: streamexplanationlevelfunc
+#+begin_src python :results none
+  # Create a new function that accepts question and level and streams the response
+  def stream_ai_tutor_response_with_level(user_question, explanation_level_value):
+      """
+      Streams AI Tutor response based on user question and selected explanation level.
+
+      Args:
+          user_question (str): The question from the user.
+          explanation_level_value (int): The value from the slider (1-5).
+
+      Yields:
+          str: Chunks of the AI's response.
+      """
+
+      # Get the descriptive text for the chosen level
+      level_description = explanation_levels.get(
+          explanation_level_value, "clearly and concisely"
+      )  # Default if level not found
+
+      # Construct the system prompt dynamically based on the level
+      system_prompt = f"You are a helpful AI Tutor. Explain the following concept {level_description}."
+
+      print(f"DEBUG: Using System Prompt: '{system_prompt}'")  # For checking
+
+      try:
+          stream = openai_client.chat.completions.create(
+              model = "gpt-4o-mini",
+              messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_question}],
+              temperature = 0.7,
+              stream = True,
+          )
+
+          # Iterate through the response chunks
+          full_response = ""  # Keep track of the full response if needed later
+
+          # Loop through each chunk of the response as it arrives
+          for chunk in stream:
+              # Check if this chunk contains actual text content
+              if chunk.choices[0].delta and chunk.choices[0].delta.content:
+                  # Extract the text from this chunk
+                  text_chunk = chunk.choices[0].delta.content
+                  # Add this chunk to our growing response
+                  full_response += text_chunk
+                  # 'yield' is special - it sends the current state of the response to Gradio
+                  # This makes the text appear to be typing in real-time
+                  yield full_response
+
+      except Exception as e:
+          print(f"An error occurred during streaming: {e}")
+          yield f"Sorry, I encountered an error: {e}"
+#+end_src
+
+Finally we can test it all out:
+#+name: finalproject
+#+begin_src python :results output :exports both
+  # Define the Gradio interface with both Textbox and slider inputs
+  ai_tutor_interface_slider = gr.Interface(fn = stream_ai_tutor_response_with_level,  # Function now takes 2 args
+      inputs=[
+          gr.Textbox(lines = 3, placeholder = "Ask the AI Tutor a question...", label = "Your Question"),
+          gr.Slider(
+              minimum = 1,
+              maximum = 5,
+              step = 1,  # Only allow whole numbers
+              value = 3,  # Default level (high school)
+              label = "Explanation Level",  # Label for the slider
+          ),
+      ],
+      outputs = gr.Markdown(label = "AI Tutor's Explanation (Streaming)", container = True, height = 250),
+      title = "🎓 Advanced AI Tutor",
+      description = "Ask a question and select the desired level of explanation using the slider.",
+      allow_flagging = "never",
+  )
+
+  # Launch the advanced interface
+  print("Launching Advanced Gradio Interface with Slider...")
+  ai_tutor_interface_slider.launch()
+#+end_src
+
+This launches our web application, which we can reach on the following port:
+#+RESULTS: finalproject
+: Launching Advanced Gradio Interface with Slider...
+: * Running on local URL:  http://127.0.0.1:7861
+: * To create a public link, set `share=True` in `launch()`.
+
+Now our application has a slider that we can use adjust what level we want our
+explanation to be!
+
+* Summary
+  In this section we have built a fully functioning web application that prompts
+  an AI tutor and is able to explain it's answers in multiple levels. Here are
+  some key take aways:
+  - Gradio makes it easy to build and deploy powerful user interfaces with just
+    a few lines of code.
+  - Enabling streaming responses adds a human-like, real-time chat experience
+    with LLMs.
+  - With Gradio, you can quickly create interactive AI apps using various UI
+    components like text boxes, sliders, maps, and more.
