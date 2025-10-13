@@ -150,6 +150,8 @@ will be:
    #+end_src
 
 * Transformer Library
+  Now we will go over the Hugging Face transformers library. There are three
+  main classes in the transformers library:
   - *transformers*: A Python library that provides a standardized way to
     download, load, and use models from the Hub with just a few lines of
     code. Key classes:
@@ -164,6 +166,31 @@ will be:
   - *Other Libraries*: HF also develops libraries like accelerate (for efficient
     loading/distributed training), datasets (for handling datasets), and
     evaluate (for model evaluation metrics).
+
+** What is a Transformer?
+   The transformer architecture is an AI model for processing text, designed to
+   understand and generate language efficiently.
+   1. *Input Tokens (Words or Pieces of Words):* It starts by breaking text into
+      smaller chunks (tokens), like words or parts of words. For example "I love
+      cats" becomes ~[I, love, cats]~.
+   2. *Self attention (Focus Mechanism):* Imagine reading a sentence like: "The
+      cat sat on the mat because it was soft.". To figure out what "it" refers
+      to, you need to think about "mat". The transformer uses self-attention to
+      decide which words in the sentence are important to focus on. This helps
+      it understand the context better.
+   3. *Layers (Like Thinking Steps):* The model processes input in multiple
+      layers, where each layer refines its understanding. For example:
+      - Layer 1 might focus on word meanings.
+      - Layer 2 might figure out relationships between words.
+      - Layer 3 might understand the whole sentence.
+   4. *Positional Information (Word Order):* Since the model reads all the words
+      at once, it also adds positional encoding to know the order of the words
+      (e.g. knowing "the cat" is different from "cat the").
+   5. *Output (Final Prediction):* After processing, it predicts the next word,
+      translates text, summarizes, or preforms another task. For example, if you
+      type "I love", it might predict "cats".
+
+   All of this comes from a paper called: [[https://arxiv.org/abs/1706.03762][Attention Is All You Need]].
 
 ** Pipeline
    #+name: pipeline
@@ -184,7 +211,7 @@ will be:
 
 ** AutoTokenizer
    #+name: autotokenizer
-   #+begin_src python :results output :exports both
+   #+begin_src python :results output :exports both :tangle no
      # Let's explore AutoTokenizer
      # A tokenizer converts text into numerical IDs that the model understands
      # Check a demo for OpenAI's Tokenizers here: https://platform.openai.com/tokenizer
@@ -230,6 +257,7 @@ will be:
       function is often simpler for basic text generation. It handles
       tokenization, model inference, and decoding back to text for you.
 
+   We can begin by picking our model:
    #+name: automodelforcasuallm
    #+begin_src python :results none :exports both
      # Let's import AutoModelForCasualLM
@@ -238,11 +266,12 @@ will be:
      # Let's choose a small, powerful model suitable for Colab.
      # Alternatives you could try (might need login/agreement):
      # model_id = "unsloth/gemma-3-4b-it-GGUF"
-     # model_id = "Qwen/Qwen2.5-3B-Instruct"
-     model_id = "microsoft/Phi-3.5-mini-instruct"
+     model_id = "Qwen/Qwen2.5-3B-Instruct"
+     # model_id = "microsoft/Phi-4-mini-instruct"
      # model_id = "unsloth/Llama-3.2-3B-Instruct"
    #+end_src
 
+   Now we can load our tokenizer:
    #+name: loadtokenizer
    #+begin_src python :results output :exports both
      # Let's load the Tokenizer
@@ -257,6 +286,7 @@ will be:
    #+RESULTS: loadtokenizer
    : Tokenizer loaded successfully.
 
+   Now we can load our model of choice:
    #+name: quantization
    #+begin_src python :results output :exports both
      # Let's Load the Model with Quantization
@@ -279,7 +309,7 @@ will be:
    #+end_src
 
    #+RESULTS: quantization
-   : Loading model: microsoft/Phi-3.5-mini-instruct
+   : Loading model: microsoft/Phi-4-mini-instruct
    : This might take a few minutes, especially the first time...
 
    Now let's define our initial prompt:
@@ -290,7 +320,7 @@ will be:
    #+end_src
 
    #+name: response
-   #+begin_src python :results output :exports both
+   #+begin_src python :results output :exports both :tangle no
      # Method 1: Let's test the model and Tokenizer using the .generate() method!
 
      # Let's encode the input first
@@ -304,7 +334,6 @@ will be:
    #+end_src
 
    #+RESULTS: response
-   : WARNING:transformers_modules.microsoft.Phi_hyphen_3_dot_5_hyphen_mini_hyphen_instruct.3145e03a9fd4cdd7cd953c34d9bbf7ad606122ca.modeling_phi3:You are not running the flash-attention implementation, expect numerical differences.
    : Explain how Electric Vehicles work in a funny way!
    : Electric vehicles (EVs) are a type of vehicle that runs on electricity instead of gasoline. Here's a funny way to explain how they work:
    : Imagine an EV as a big, silent, and eco-friendly robot that loves to eat. Instead of gobbling up burgers and fries, it munches on electric juice (that's electricity for you). Here's the funny part:
@@ -316,3 +345,458 @@ will be:
    : So, in a funny way, an electric vehicle is like a silent, eco-friendly robot that loves to eat electric juice, powered by its electric brain and legs, and always ready to zip around without making a peep. It's a clean, green, and funny way to travel!
    : Answer
    : Electric vehicles (EVs) work by using electricity stored in a battery to power electric motors that drive the wheels. The vehicle's controller manages the distribution of electricity, ensuring efficient movement. Regenerative braking systems capture energy usually lost during braking, recharging the battery. Sensors help navigate and avoid obstacles, making EVs a silent and environmentally friendly mode of transportation.
+
+   What we can also do is ~pipeline~ that we used earlier to create a pipeline
+   that incorporates our tokenizer and our model all in one. This is pretty much
+   all we need to do use moving forward as this is a much easier and much more
+   streamlined approach:
+   #+name: response2
+   #+begin_src python :results none :exports both
+     # Method 2: alternatively, you can create a pipeline that includes your model and tokenizer
+     # The pipeline wraps tokenization, generation, and decoding
+
+     pipe = pipeline("text-generation",
+                     model = model,
+                     tokenizer = tokenizer,
+                     torch_dtype = "auto", # Match model dtype
+                     device_map = "auto" # Ensure pipeline uses the same device mapping
+                     )
+
+
+     outputs = pipe(prompt,
+                    max_new_tokens = 1000, # max_new_tokens limits the length of the generated response.
+                    temperature = 1, # temperature controls randomness (lower = more focused).
+                    )
+
+     # Print the generated text
+     print_markdown(outputs[0]['generated_text'])
+   #+end_src
+
+* Reading PDF Documents & Extracting text using PyPDF library
+  Now that we have a model loaded, we need the text from our document to ask
+  questions about. We'll use the ~pypdf~ library to extract text from a PDF
+  file.
+
+  For this example, we'll download a sample PDF about climate change. You can
+  easily adapt this to use your own PDF by uploading it to Colab.
+
+  *Steps*:
+  - *Get the PDF*: Download it or specify the path if uploaded.
+  - *Open the PDF*: Use ~pypdf.PdfReader~.
+  - *Iterate Through Pages*: Loop through each page in the PDF.
+  - *Extract Text*: Use ~page.extract_text()~.
+  - *Combine Text*: Join the text from all pages into a single string.
+
+  To learn ~pypdf~ we are going to use Alaphabet's (Google's parent company)
+  earnings transcript for Q1 2025:
+  #+name: pypdf
+  #+begin_src python :results output :exports both
+    import requests
+    from pathlib import Path
+
+    # --- Get the PDF File ---
+    pdf_url = "https://s206.q4cdn.com/479360582/files/doc_financials/2025/q1/2025-q1-earnings-transcript.pdf"
+    pdf_filename = "google_earning_transcript.pdf"
+    pdf_path = Path(pdf_filename)
+
+    # Download the file if it doesn't exist
+    if not pdf_path.exists():
+        response = requests.get(pdf_url)
+        response.raise_for_status()  # Check for download errors
+        pdf_path.write_bytes(response.content)
+        print(f"PDF downloaded successfully to {pdf_path}")
+    else:
+        print(f"PDF file already exists at {pdf_path}")
+
+
+    # --- Read Text from PDF using pypdf ---
+    pdf_text = ""
+
+    print(f"Reading text from {pdf_path}...")
+    reader = pypdf.PdfReader(pdf_path)
+    num_pages = len(reader.pages)
+    print(f"PDF has {num_pages} pages.")
+
+    # Extract text from each page
+    all_pages_text = []
+    for i, page in enumerate(reader.pages):
+
+        page_text = page.extract_text()
+        if page_text:  # Only add if text extraction was successful
+            all_pages_text.append(page_text)
+        # print(f"Read page {i+1}/{num_pages}") # Uncomment for progress
+
+    # Join the text from all pages
+    pdf_text = "\n".join(all_pages_text)
+    print(f"Successfully extracted text. Total characters: {len(pdf_text)}")
+  #+end_src
+
+   #+RESULTS: pypdf
+   : PDF file already exists at google_earning_transcript.pdf
+   : Reading text from google_earning_transcript.pdf...
+   : PDF has 49 pages.
+   : Successfully extracted text. Total characters: 137789
+
+   Now that we have loaded our text we can print a few samples from it like
+   this:
+   #+name: pypdfsample
+   #+begin_src python :results output :exports both :tangle no
+     # Display a small snippet of the PDF
+     print("\n--- Snippet of Extracted Text ---")
+     print_markdown(f"{pdf_text[:1000]}")
+   #+end_src
+
+   #+RESULTS: pypdfsample
+   : --- Snippet of Extracted Text ---
+   : UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549
+   :
+   : FORM 10-Q
+   :
+   : (Mark One) ☒ QUARTERLY REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 For the quarterly period ended March 31, 2025 OR ☐ TRANSITION REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 For the transition period from _______ to _______ Commission file number: 001-37580
+   :
+   : Alphabet Inc. (Exact name of registrant as specified in its charter)
+   :
+   : Delaware 61-1767919 (State or other jurisdiction of incorporation or organization) (I.R.S. Employer Identification Number) 1600 Amphitheatre Parkway Mountain View, C
+
+* Q&A Logic
+  Now we have the two key ingredients:
+  1. A loaded open-source LLM (and its tokenizer/pipeline).
+  2. The text content extracted from our PDF document.
+
+  We need to combine these to answer user questions. The core idea is
+  *prompt engineering*: We'll create a prompt that includes both the user's
+  question and the relevant document context, instructing the model to answer
+  based only on that context.
+
+  *Steps*:
+  1. *Define a Prompt Template*: Create a string that structures the input for
+     the LLM. This typically includes placeholders for the context (PDF text)
+     and the question.
+  2. *Create an Answering Function*: Write a Python function that takes the PDF
+     text, the user question, and the model/tokenizer (or pipeline) as input.
+  3. *Format the Prompt*: Inside the function, fill the template with the actual
+     PDF text and question.
+  4. *Handle Context Length*: LLMs have a maximum context window (how much text
+     they can read at once). Our sample PDF might be too long! For simplicity
+     now, we might just truncate the PDF text if it's excessive. More advanced
+     techniques involve chunking the document and retrieving only relevant
+     parts, but we'll keep it basic here.
+  5. *Run Inference*: Send the formatted prompt to the model pipeline.
+  6. *Extract the Answer*: Process the model's output to get just the answer
+     part.
+
+  Now we let's build a function to handle these questions:
+  #+name: questionfunc
+  #+begin_src python :results none :exports both
+    # Define a limit for the context length to avoid overwhelming the model
+
+    MAX_CONTEXT_CHARS = 6000
+
+    def answer_question_from_pdf(document_text, question, llm_pipeline):
+        """
+        Answers a question based on the provided document text using the loaded LLM pipeline.
+
+        Args:
+            document_text (str): The text extracted from the PDF.
+            question (str): The user's question.
+            llm_pipeline (transformers.pipeline): The initialized text-generation pipeline.
+
+        Returns:
+            str: The model's generated answer.
+        """
+        # Truncate context if necessary
+        if len(document_text) > MAX_CONTEXT_CHARS:
+            print(f"Warning: Document text ({len(document_text)} chars) exceeds limit ({MAX_CONTEXT_CHARS} chars). Truncating.")
+            context = document_text[:MAX_CONTEXT_CHARS] + "..."
+        else:
+            context = document_text
+
+        # Let's define the Prompt Template
+        # We instruct the model to use only the provided document.
+        # Using a format the model expects (like Phi-3's chat format) can improve results.
+        # <|system|> provides context/instructions, <|user|> is the question.
+        # Note: Different models might prefer different prompt structures.
+        prompt_template = f"""<|system|>
+        You are an AI assistant. Answer the following question based *only* on the provided document text. If the answer is not found in the document, say "The document does not contain information on this topic." Do not use any prior knowledge.
+
+        Document Text:
+        ---
+        {context}
+        ---
+        <|end|>
+        <|user|>
+        Question: {question}<|end|>
+        <|assistant|>
+        Answer:""" # We prompt the model to start generating the answer
+
+        print(f"\n--- Generating Answer for: '{question}' ---")
+
+        # Run Inference on the chosen model
+        outputs = llm_pipeline(prompt_template,
+                               max_new_tokens = 500,  # Limit answer length
+                               do_sample = True,
+                               temperature = 0.2,   # Lower temperature for more factual Q&A
+                               top_p = 0.9)
+
+        # Let's extract the answer
+        # The output includes the full prompt template. We need the text generated *after* it.
+        full_generated_text = outputs[0]['generated_text']
+        answer_start_index = full_generated_text.find("Answer:") + len("Answer:")
+        raw_answer = full_generated_text[answer_start_index:].strip()
+
+        # Sometimes the model might still include parts of the prompt or trail off.
+        # Basic cleanup: Find the end-of-sequence token if possible, or just return raw.
+        # Phi-3 uses <|end|> or <|im_end|>
+        end_token = "<|end|>"
+        if end_token in raw_answer:
+                raw_answer = raw_answer.split(end_token)[0]
+
+        print("--- Generation Complete ---")
+        return raw_answer
+  #+end_src
+
+  Let's try a test question:
+  #+name: testquestion
+  #+begin_src python :results output :exports both
+    # Let's test the function
+    test_question = "What is this document about?"
+    generated_answer = answer_question_from_pdf(pdf_text, test_question, pipe)
+
+    print("\nTest Question:")
+    print_markdown(f"**Q:** {test_question}")
+    print("\nGenerated Answer:")
+    print_markdown(f"**A:** {generated_answer}")
+  #+end_src
+
+  #+RESULTS: testquestion
+  : Warning: Document text (137789 chars) exceeds limit (6000 chars). Truncating.
+  :
+  : --- Generating Answer for: 'What is this document about?' ---
+  : --- Generation Complete ---
+  :
+  : Test Question:
+  : Q: What is this document about?
+  :
+  :
+  : Generated Answer:
+  : A: This document appears to be the Quarterly Report on Form 10-Q for Alphabet Inc., covering the quarter ended March 31, 2025. It includes financial statements, management's discussion and analysis, and other important information. However, the full content goes beyond the given text snippet. The document details Alphabet Inc.'s financial position, including balance sheets, income statements, and comprehensive income statements, among others. It also mentions the company's stock holdings and provides a table of contents for further sections.
+
+* Gradio Interface
+  We have a working Q&A system with one model. But the beauty of Hugging Face is
+  the vast choice! Let's adapt our setup to easily switch between different
+  open-source models and build a Gradio interface to interact with it.
+
+  *Challenges & Approach*:
+  - *Loading Multiple Models*: Loading several LLMs simultaneously (even
+    quantized) will likely exceed Colab's free GPU memory.
+  - *Solution*: We'll load one model at a time based on the user's selection in
+    the Gradio interface. This means unloading the previous model before loading
+    the new one. This will introduce a loading delay when switching models, but
+    it's necessary for memory constraints.
+
+  *Steps*:
+  1. *Define Model Choices*: Create a dictionary mapping user-friendly names
+     (e.g., "Phi-3 Mini") to their Hugging Face model IDs. Include models known
+     to work in Colab free tier with 4-bit quantization.
+  2. *Global State*: Keep track of the currently loaded model and tokenizer globally (or using Gradio's State).
+  3. *Model Loading Function*: Create a function ~load_model(model_id)~ that
+     handles unloading the old model (if any) and loading the new tokenizer and
+     quantized model. It should return the new ~pipeline~.
+  4. *Gradio Interface*:
+     - Use ~gr.Blocks~ for more layout control.
+     - Add a ~gr.Dropdown~ for the user to select the desired model.
+     - Add a ~gr.Textbox~ for the user's question.
+     - Add a ~gr.Textbox~ (or ~gr.Markdown~) for the output answer.
+     - Add a ~gr.Button~ to submit the question.
+  5. *Event Handling*:
+     - When the dropdown selection changes, trigger the load_model
+       function. Show a loading indicator.
+     - When the submit button is clicked, call our answer_question_from_pdf
+       function, passing the current PDF text, the question, and the currently
+       loaded pipeline.
+
+  Let's define our available models:
+  #+name: availablemodels
+  #+begin_src python :results none :exports both
+    # Make sure we have the pdf_text
+    # Configuration: Models available for selection
+    # Use models known to fit in Colab free tier with 4-bit quantization
+
+    available_models = {
+        "Llama 3.2": "unsloth/Llama-3.2-3B-Instruct",
+        "Microsoft Phi-4 Mini": "microsoft/Phi-4-mini-instruct",
+        "Google Gemma 3": "unsloth/gemma-3-4b-it-GGUF"
+        }
+  #+end_src
+
+  Let's create a function to handle switching between models:
+  #+name: switchingmodels
+  #+begin_src python :results output :exports both
+    # --- Global State (or use gr.State in Blocks) ---
+    # To keep track of the currently loaded model/pipeline
+    current_model_id = None
+    current_pipeline = None
+    print(f"Models available for selection: {list(available_models.keys())}")
+
+
+    # Define a function to Load/Switch Models
+    def load_llm_model(model_name):
+        """Loads the selected LLM, unloading the previous one."""
+        global current_model_id, current_pipeline, tokenizer, model
+
+        new_model_id = available_models.get(model_name)
+        if not new_model_id:
+            return "Invalid model selected.", None  # Return error message and None pipeline
+
+        if new_model_id == current_model_id and current_pipeline is not None:
+            print(f"Model {model_name} is already loaded.")
+            # Indicate success but don't reload
+            return f"{model_name} already loaded.", current_pipeline
+
+        print(f"Switching to model: {model_name} ({new_model_id})...")
+
+        # Unload previous model (important for memory)
+        # Clear variables and run garbage collection
+        current_pipeline = None
+        if "model" in locals():
+            del model
+        if "tokenizer" in locals():
+            del tokenizer
+        if "pipe" in locals():
+            del pipe
+        torch.cuda.empty_cache()  # Clear GPU memory cache
+        import gc
+
+        gc.collect()
+        print("Previous model unloaded (if any).")
+
+        # --- Load the new model ---
+        loading_message = f"Loading {model_name}..."
+        try:
+            # Load Tokenizer
+            tokenizer = AutoTokenizer.from_pretrained(new_model_id, trust_remote_code = True)
+
+            # Load Model (Quantized)
+            model = AutoModelForCausalLM.from_pretrained(new_model_id,
+                                                         torch_dtype = "auto",  # "torch.float16", # Or bfloat16 if available
+                                                         load_in_4bit = True,
+                                                         device_map = "auto",
+                                                         trust_remote_code = True)
+
+            # Create Pipeline
+            loaded_pipeline = pipeline(
+                "text-generation", model = model, tokenizer = tokenizer, torch_dtype = "auto", device_map = "auto")
+
+            print(f"Model {model_name} loaded successfully!")
+            current_model_id = new_model_id
+            current_pipeline = loaded_pipeline  # Update global state
+            # Use locals() or return values with gr.State for better Gradio practice
+            return f"{model_name} loaded successfully!", loaded_pipeline  # Status message and the pipeline object
+
+        except Exception as e:
+            print(f"Error loading model {model_name}: {e}")
+            current_model_id = None
+            current_pipeline = None
+            return f"Error loading {model_name}: {e}", None  # Error message and None pipeline
+  #+end_src
+
+  #+RESULTS: switchingmodels
+  : Models available for selection: ['Llama 3.2', 'Microsoft Phi-4 Mini', 'Google Gemma 3']
+
+  We will also create a function to handle submissions to our models:
+  #+begin_src python :results none :exports both
+    # --- Function to handle Q&A Submission ---
+    # This function now relies on the globally managed 'current_pipeline'
+    # In a more robust Gradio app, you'd pass the pipeline via gr.State
+    def handle_submit(question):
+        """Handles the user submitting a question."""
+        if not current_pipeline:
+            return "Error: No model is currently loaded. Please select a model."
+        if not pdf_text:
+            return "Error: PDF text is not loaded. Please run Section 4."
+        if not question:
+            return "Please enter a question."
+
+        print(f"Handling submission for question: '{question}' using {current_model_id}")
+        # Call the Q&A function defined in Section 5
+        answer = answer_question_from_pdf(pdf_text, question, current_pipeline)
+        return answer
+  #+end_src
+
+  Then we can build our Gradio interface:
+  #+begin_src python :results none :exports both
+    # --- Build Gradio Interface using Blocks ---
+    print("Building Gradio interface...")
+    with gr.Blocks(theme=gr.themes.Soft()) as demo:
+        gr.Markdown(
+            f"""
+        # PDF Q&A Bot Using Hugging Face Open-Source Models
+        Ask questions about the document ('{pdf_filename}' if loaded, {len(pdf_text)} chars).
+        Select an open-source LLM to answer your question.
+        ,**Note:** Switching models takes time as the new model needs to be downloaded and loaded into the GPU.
+        """
+        )
+
+        # Store the pipeline in Gradio state for better practice (optional for this simple version)
+        # llm_pipeline_state = gr.State(None)
+
+        with gr.Row():
+            model_dropdown = gr.Dropdown(
+                choices=list(available_models.keys()),
+                label="🤖 Select LLM Model",
+                value=list(available_models.keys())[0],  # Default to the first model
+            )
+            status_textbox = gr.Textbox(label="Model Status", interactive=False)
+
+        question_textbox = gr.Textbox(
+            label="❓ Your Question", lines=2, placeholder="Enter your question about the document here..."
+        )
+        submit_button = gr.Button("Submit Question", variant="primary")
+        answer_textbox = gr.Textbox(label="💡 Answer", lines=5, interactive=False)
+
+        # --- Event Handlers ---
+        # When the dropdown changes, load the selected model
+        model_dropdown.change(
+            fn = load_llm_model,
+            inputs = [model_dropdown],
+            outputs = [status_textbox],  # Update status text. Ideally also update a gr.State for the pipeline
+            # outputs=[status_textbox, llm_pipeline_state] # If using gr.State
+        )
+
+        # When the button is clicked, call the submit handler
+        submit_button.click(
+            fn = handle_submit,
+            inputs = [question_textbox],
+            outputs = [answer_textbox],
+            # inputs=[question_textbox, llm_pipeline_state], # Pass state if using it
+        )
+
+        # --- Initial Model Load ---
+        # Easier: Manually load first model *before* launching Gradio for simplicity here
+        initial_model_name = list(available_models.keys())[0]
+        print(f"Performing initial load of default model: {initial_model_name}...")
+        status, _ = load_llm_model(initial_model_name)
+        status_textbox.value = status  # Set initial status
+        print("Initial load complete.")
+
+
+    # --- Launch the Gradio App ---
+    print("Launching Gradio demo...")
+    demo.launch(debug=True)  # debug=True provides more detailed logs
+  #+end_src
+
+* Summary
+  That concludes our project on building a question and answer and system where
+  users can ask questions against their documents. In this section we:
+  - Gained a solid understanding of Hugging Face's role in democratizing AI
+    through open-source models and tools.
+  - Practiced using transformers, pypdf, and Gradio libraries in real-world AI
+    applications.
+  - Learned to run large language models within limited computing resources
+    using bitsandbytes for quantization.
+  - Applied prompt design techniques and built interactive UIs to improve user
+    experience and test multiple models easily.
+  - Understood the concept of Tokenization in large language models.
+  - Learned the difference between pipeline() (task based interface),
+    AutoTokenizer (text to tokens), and AutoModelFor... (model loading for
+    specific tasks).
