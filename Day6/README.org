@@ -4,6 +4,9 @@
 #+PROPERTY: header-args:python+ :results value
 #+PROPERTY: header-args:python+ :shebang "#!/usr/bin/env python"
 
+In our previous project, we explored running open-source models for document
+Q&A. Now, let's dive into models known for stronger reasoning capabilities and
+apply them to a real-world task: analyzing financial news.
 
 #+BEGIN_SRC elisp :exports none :results none
   (setq org-babel-python-command (concat
@@ -14,3 +17,192 @@
 #+begin_src python :exports none :results none
   # This file was generated from the README.org found in this directory
 #+end_src
+
+In this section we are going to leverage the power of reasoning models available
+on hugging face to be able to classify news data and reason on the news. We are
+also going to cover how to select models. We will also go over some of the
+leader boards available on hugging face.
+
+We'll use a model from the DeepSeek family, known for their strength in coding
+and instruction following, which often translates to better step-by-step
+reasoning. We won't just classify news as positive, negative, or neutral; we'll
+ask the model to explain its reasoning and provide a tag for the news.
+
+What We'll Build is a system that:
+1. Loads financial news headlines and descriptions from a Hugging Face dataset.
+2. Uses a DeepSeek model (like ~deepseek-coder-1.3b-instruct~) to analyze the
+   news.
+3. Outputs not just the sentiment classification (Positive, Negative, Neutral)
+   but also a reasoning trace explaining why it reached that conclusion.
+4. Presents this analysis in a simple Gradio interface.
+
+* Key Learning Outcomes
+  This section will have us:
+  - Work with reasoning LLMs, such as DeepSeek, that require logical,
+    step-by-step thinking and understand how these models differ from
+    general-purpose chatbots.
+  - Explore how to use the Hugging Face datasets library to efficiently load,
+    preprocess, and manage datasets from the Hub.
+  - Develop prompting strategies for structured responses that guide models to
+    generate outputs in a specific format (e.g. reasoning steps followed by
+    classifications).
+  - Gain skills in parsing model outputs to extract relevant elements, such as
+    intermediate reasoning & final answers, from generated text.
+  - Apply LLMs to classification tasks that are typically handled by traditional
+    classifiers, with the added advantage of greater transparency and
+    explainability.
+  - Learn how to navigate Hugging Face leaderboards to evaluate the performance
+    of open and closed source models.
+  - Apply a framework to choose the right LLM for your business.
+
+* Explore Hugging Face datasets library & install key libraries
+  As usual, we begin by installing the necessary libraries. This time, we're
+  adding the datasets library to easily load data from the Hugging Face
+  Hub. We'll also repeat the Hugging Face login step, which is good practice.
+
+  *Installing Libraries*:
+  - ~transformers~, ~accelerate~, ~bitsandbytes~, ~torch~: For loading and
+    running our DeepSeek model efficiently.
+  - ~datasets~: To load the financial news dataset.
+  - ~gradio~: For building the UI.
+
+  [[https://huggingface.co/datasets][Hugging Face datasets Library]]
+
+  #+name: hflogin
+  #+begin_src python :results output :exports both
+    # Hugging Face Login
+    import os
+    from huggingface_hub import login, notebook_login
+
+    print("Attempting Hugging Face login...")
+
+    notebook_login()
+    print("Login successful (or token already present)!")
+  #+end_src
+
+  #+RESULTS: hflogin
+  : Attempting Hugging Face login...
+  : Login successful (or token already present)!
+
+  #+name: gpucheck
+  #+begin_src python :results output :exports both
+    import torch
+    import transformers
+    from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+    from datasets import load_dataset  # Import the dataset loading function
+    import gradio as gr
+    from IPython.display import display, Markdown
+    import random  # To pick random news items
+
+    # Check for GPU availability
+    if torch.cuda.is_available():
+        print(f"GPU detected: {torch.cuda.get_device_name(0)}")
+        torch.set_default_device("cuda")
+        print("PyTorch default device set to CUDA (GPU).")
+    else:
+        print("WARNING: No GPU detected. Performance will be very slow.")
+        print("Go to Runtime > Change runtime type and select GPU.")
+  #+end_src
+
+  #+RESULTS: gpucheck
+  : GPU detected: Tesla T4
+  : PyTorch default device set to CUDA (GPU).
+
+  We will also include our classic ~print_markdown~ function:
+  #+begin_src python :results none :exports both
+    # Helper function for markdown display
+    def print_markdown(text):
+        """Displays text as Markdown."""
+        display(Markdown(text))
+  #+end_src
+
+* Load financial news dataset from Hugging Face
+  We'll use the Hugging Face ~datasets~ library to load the
+  ~PaulAdversarial/all_news_finance_sm_1h2023~ dataset directly from the
+  Hub. This library makes accessing and manipulating large datasets incredibly
+  convenient.
+
+  *Steps*:
+  1. Use ~load_dataset("dataset_name")~ to download and cache the dataset.
+  2. Inspect the dataset structure and features (columns).
+  3. Select the relevant columns ('title' and 'description') for our analysis.
+  4. Combine the title and description into a single text input for the LLM.
+
+  #+name: loaddataset
+  #+begin_src python :results output :exports both
+    dataset_id = "PaulAdversarial/all_news_finance_sm_1h2023"
+
+    print(f"Loading dataset: {dataset_id}...")
+
+    # Load the dataset (will download if not cached)
+    # We might only need the 'train' split, specify split = 'train' if needed
+    # The datatype of news_dataset is datasets.Dataset (from the datasets library by Hugging Face).
+    news_dataset = load_dataset(dataset_id, split = "train")
+    print("Dataset loaded successfully!")
+  #+end_src
+
+  #+RESULTS: loaddataset
+
+  Let's take a look at our dataset:
+  #+name: printdata
+  #+begin_src python :results output :exports both :tangle no
+    print(news_dataset)
+
+    # Let's display the features (columns and their types)
+    print("\n Dataset Features")
+    print(news_dataset.features)
+  #+end_src
+
+  #+RESULTS: printdata
+
+  Let's make a function to combine our text:
+  #+name: combinefunc
+  #+begin_src python :results output :exports both
+    # Let's prepare the data for the LLM
+    # We'll combine title and description for the input text
+    def combine_news_text(example):
+
+        # Handle potential None values gracefully
+        title = example.get("title", "") or ""
+        description = example.get("description", "") or ""
+
+        # Add a separator for clarity
+        return {"full_text": f"Title: {title}\nDescription: {description}"}
+  #+end_src
+
+  #+RESULTS: combinefunc
+
+  Now we can print our combined text:
+  #+name: printcombine
+  #+begin_src python :results output :exports both :tangle no
+    # Let's apply the function to combine the 'title' and 'description' into 'full_text'
+    # This uses map, which is efficient for datasets
+
+    news_dataset = news_dataset.map(combine_news_text)
+
+    print("\n--- Sample Data with 'full_text' ---")
+    print(news_dataset[0])
+
+    # Let's display the full_text of the first sample
+    print(news_dataset[0]["full_text"])
+  #+end_src
+
+  #+RESULTS: printcombine
+
+* Load and Test DeepSeek
+  Now, let's load our chosen "reasoning" model. We're using
+  ~deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B~ which excels at following complex
+  instructions and performing logical steps, which is useful for our task of
+  generating a reasoned sentiment analysis.
+
+  *Why DeepSeek for this Task?*
+  - *Instruction Following*: Good at adhering to complex prompts, like our
+    request for both reasoning and classification in a specific format.
+  - *Logical Steps*: Its training helps in breaking down the analysis into steps
+    (the reasoning trace).
+  - *Colab Friendly*: The 1.5B parameter size is manageable within the free tier
+    GPU memory limits when using 4-bit quantization.
+
+  We'll load it using the same ~transformers~ components (~AutoTokenizer~,
+  ~AutoModelForCausalLM~, ~pipeline~) and 4-bit quantization
+  (~load_in_4bit=True~) as in the previous project.
