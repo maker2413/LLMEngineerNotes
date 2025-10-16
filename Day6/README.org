@@ -130,7 +130,7 @@ What We'll Build is a system that:
 
   #+name: loaddataset
   #+begin_src python :results output :exports both
-    dataset_id = "PaulAdversarial/all_news_finance_sm_1h2023"
+    dataset_id = "mohit9999/all_news_finance_sm_1h2023_custom"
 
     print(f"Loading dataset: {dataset_id}...")
 
@@ -142,22 +142,31 @@ What We'll Build is a system that:
   #+end_src
 
   #+RESULTS: loaddataset
+  : Loading dataset: mohit9999/all_news_finance_sm_1h2023_custom...
+  : Dataset loaded successfully!
 
   Let's take a look at our dataset:
-  #+name: printdata
+  #+name: print data
   #+begin_src python :results output :exports both :tangle no
     print(news_dataset)
 
     # Let's display the features (columns and their types)
-    print("\n Dataset Features")
+    print("\nDataset Features")
     print(news_dataset.features)
   #+end_src
 
   #+RESULTS: printdata
+  : Dataset({
+  :   features: ['instruction', 'output', 'text'],
+  :   num_rows: 5062
+  : })
+  :
+  : Dataset Features
+  : {'instruction': Value('string'), 'output': Value('string'), 'text': Value('string')}
 
   Let's make a function to combine our text:
   #+name: combinefunc
-  #+begin_src python :results output :exports both
+  #+begin_src python :results none :exports both
     # Let's prepare the data for the LLM
     # We'll combine title and description for the input text
     def combine_news_text(example):
@@ -169,8 +178,6 @@ What We'll Build is a system that:
         # Add a separator for clarity
         return {"full_text": f"Title: {title}\nDescription: {description}"}
   #+end_src
-
-  #+RESULTS: combinefunc
 
   Now we can print our combined text:
   #+name: printcombine
@@ -188,6 +195,8 @@ What We'll Build is a system that:
   #+end_src
 
   #+RESULTS: printcombine
+  : --- Sample Data with 'full_text' ---
+  : {'instruction': 'Dow drops 400 points, turns negative for the year as bank fears grow: Live updates', 'output': 'Regional banks led the broader market lower as contagion fears resurfaced.', 'text': 'Below is an instruction that describes a task. Write a response that appropriately completes the request.\n\n### Instruction: Dow drops 400 points, turns negative for the year as bank fears grow: Live updates\n\n### Response: Regional banks led the broader market lower as contagion fears resurfaced.', 'full_text': 'Title: \nDescription: '}
 
 * Load and Test DeepSeek
   Now, let's load our chosen "reasoning" model. We're using
@@ -206,3 +215,591 @@ What We'll Build is a system that:
   We'll load it using the same ~transformers~ components (~AutoTokenizer~,
   ~AutoModelForCausalLM~, ~pipeline~) and 4-bit quantization
   (~load_in_4bit=True~) as in the previous project.
+
+** DeepSeek Models RL vs SFT
+   Unlike OpenAI's GPT models, which typically rely on supervised fine-tuning
+   (SFT) before reinforcement learning (RL), DeepSeek models take a different
+   path.
+
+   They apply RL directly to the base model without using SFT as a starting
+   point.
+
+   This unique training strategy enables the model to naturally develop advanced
+   reasoning skills, such as chain-of-thought reasoning, self-verification, &
+   reflection. As a result, DeepSeek models generate more thoughtful,
+   step-by-step solutions to complex problems, representing a significant
+   breakthrough in the field of AI.
+   - Supervised Fine-Tuning (SFT) :: We give the model a question and the
+     correct answer, and the model learns from the labeled examples.
+     - Example:
+       #+begin_example
+         # Input: Question
+         Q: What is 2 + 2?
+
+         # Output: Correct Answer
+         A: 4
+
+         # Training goal: Match the correct answer ("4")
+       #+end_example
+   - Reinforcement Learning (RL) :: We let the model try answering without
+     telling it the right answer upfront. The model gets a reward based on how
+     good the answer is. It learns from trial & error, improving over time.
+     - Example:
+       #+begin_example
+         # Model tries:
+         A1: 5 -> Reward = 0 (wrong)
+         A2: 4 -> Reward = +1 (correct)
+         A3: "It is 4 because 2 + 2 equals 4." -> Reward = +2 (correct + good explanation)
+
+         # Training goal: Maximize rewards over many tries
+       #+end_example
+
+   Let's explore the model:
+   https://huggingface.co/deepseek-ai/deepseek-coder-1.3b-instruct:
+   #+name: loadmodel
+   #+begin_src python :results output :exports both
+     # Let's choose our smaller DeepSeek model, which is suitable for Google Colab and reasoning tasks.
+     model_id = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+     print(f"Loading model: {model_id}")
+     print("This may take a few minutes...")
+
+
+     # AutoModelForCausalLM.from_pretrained(...): Loads a pre-trained language model for tasks like text generation (e.g., ChatGPT-like behavior).
+     # model_id: The name or path of the model you want to load from Hugging Face (like "meta-llama/Llama-3-8b").
+     # torch_dtype="auto": Automatically chooses the best data type (like float16 or float32) based on your hardware for efficiency.
+     # load_in_4bit=True: Loads the model in 4-bit precision to save memory and run on limited hardware like free Colab GPUs.
+     # device_map="auto": Automatically puts the model on the right device (GPU if available, otherwise CPU).
+     # trust_remote_code=True: Use only with trusted models to avoid security risks.
+
+     model = AutoModelForCausalLM.from_pretrained(model_id,
+                                                  torch_dtype = "auto",
+                                                  load_in_4bit = True,
+                                                  device_map = "auto",
+                                                  trust_remote_code = True)
+
+     model.eval()
+     print("Model loaded successfully in 4-bit!")
+   #+end_src
+
+  #+RESULTS: loadmodel
+  : Loading model: deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
+  : This may take a few minutes...
+  : Model loaded successfully in 4-bit!
+
+  Let's load the Tokenizer:
+  #+name: loadtokenizer
+  #+begin_src python :results output :exports both
+    tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code = True)
+    print("Tokenizer loaded successfully.")
+  #+end_src
+
+  #+RESULTS: loadtokenizer
+  : Tokenizer loaded successfully.
+
+  Let's create the Text Generation Pipeline:
+  #+name: genpipeline
+  #+begin_src python :results output :exports both
+    llm_pipeline = pipeline("text-generation", model = model, tokenizer = tokenizer, torch_dtype = "auto", device_map = "auto")
+    print("Text generation pipeline created successfully.")
+  #+end_src
+
+  #+RESULTS: genpipeline
+  : Text generation pipeline created successfully.
+
+  Let's run our first test prompt:
+  #+name: testprompt
+  #+begin_src python :results output :exports both
+    # Let's build the full formatted prompt:
+    # <|im_start|>user: Marks the beginning of the user's message.
+    # {test_question}: Inserts your question.
+    # <|im_end|>: Marks the end of the user’s message.
+    # <|im_start|>assistant: Signals that the assistant (AI) is about to reply.
+    # <think>: Encourages the AI to generate internal reasoning or thoughts before answering.
+
+    test_question = "Explain what electric cars are in simple terms. Keep the thinking short."
+    test_prompt = f"<|im_start|>user\n{test_question}<|im_end|>\n<|im_start|>assistant\n<think>\n"
+    print(f"Test prompt:\n{test_prompt}")
+  #+end_src
+
+  #+RESULTS: testprompt
+  : Test prompt:
+  : <|im_start|>user
+  : Explain what electric cars are in simple terms. Keep the thinking short.<|im_end|>
+  : <|im_start|>assistant
+  : <think>
+
+  Now let's try out this model!
+  #+name: firstrun
+  #+begin_src python :results output :exports both
+    # Let's test this beast of a model!
+    # Generate text using the pipeline
+    # max_new_tokens: Maximum number of tokens to generate
+    # do_sample: Enable sampling for more diverse outputs (vs greedy decoding). Enables sampling, meaning the model won’t always pick the highest probability next word — instead, it adds some randomness to make responses more creative and diverse.
+    # temperature: Controls randomness (0.7 is balanced between creative and focused)
+    # top_p: Nucleus sampling parameter (0.9 keeps responses on topic while allowing variety). Where the model chooses from the top 90% of likely next words (not just the top one). Helps keep output fluent but varied.
+
+    print("Testing model with a simple instruction")
+
+    outputs = llm_pipeline(test_prompt,
+                           max_new_tokens = 4000,
+                           do_sample = True,
+                           temperature = 0.7,
+                           top_p = 0.9)
+
+    print(outputs)
+  #+end_src
+
+  #+RESULTS: firstrun
+  : Testing model with a simple instruction
+  : [{'generated_text': "<|im_start|>user\nExplain what electric cars are in simple terms. Keep the thinking short.<|im_end|>\n<|im_start|>assistant\n<think>\nOkay, so I'm trying to explain what electric cars are in simple terms. I know electric cars are cars that use electricity instead of gas, but I'm not exactly sure how they work. Let me think about this step by step.\n\nFirst, I remember that cars have engines, and those engines usually use fuel to power the car. So, electric cars must have different systems. I think they have something called an electric motor, which is used in things like fans and washing machines. Maybe electric cars use that motor to power the car.\n\nWait, but how does the motor work? I think it's something that converts electrical energy into mechanical energy, making the car move. So, electric cars must have a motor that's powered by electricity.\n\nI also recall that electric cars might have some special features. Maybe they have automatic transmissions, which automatically shifts gears based on speed or distance, instead of manual transmission which requires human input. That would make driving more efficient and easier.\n\nAnother thing I'm trying to remember is about charging. Electric cars probably have a charging system, maybe a battery, so they can keep charging and extending their range. I think the battery can store a lot of energy, which helps with long drives.\n\nI should also consider the efficiency. Electric cars are supposed to be more efficient than gasoline-powered cars because they don't produce as much emissions and use less fuel. So, their range is usually longer.\n\nWait, but how about the cost? I've heard that electric cars might be more expensive because of maintenance and potentially additional features like electric windows or seats. So, while they're more efficient, they might require more upfront investment.\n\nI'm also thinking about the environment. Electric cars can run on solar power, which is great for people who don't have solar panels. They can also be used for electric vehicles that use hydrogen fuel cells, which are used in some countries.\n\nIn summary, electric cars are cars powered by electricity instead of fuel. They have electric motors, automatic transmissions, and a battery system to keep charging and extend their range. They are more efficient and have features like automatic driving, solar charging, and hydrogen fuel cells, but they might be more expensive to maintain.\n\nI think I've got a good grasp of what electric cars are now. I'll try to put it all together in a simple explanation.\n</think>\n\nElectric cars are cars powered by electricity instead of fuel. They have electric motors that convert electrical energy into mechanical energy to move the car. Some electric cars use automatic transmissions for better driving efficiency. They also have a battery system to keep charging and extend their range. Electric cars are more efficient than gasoline-powered cars and can run on solar power. However, they might be more expensive to maintain with features like automatic driving, solar charging, and hydrogen fuel cells."}]
+
+  Since that is a little hard to read let's create a function to format the
+  output:
+  #+name: formatfunc
+  #+begin_src python :results none :exports both
+    # Function to extract and format the reason and output
+    def format_model_output(output):
+
+        # Extract the content within <think> tags as Reason
+        reason_start = output.find("<think>") + len("<think>")
+        reason_end = output.find("</think>")
+        reason = output[reason_start:reason_end].strip()
+
+        # Extract the content after </think> as Output
+        output_start = reason_end + len("</think>")
+        model_output_content = output[output_start:].strip()
+
+        # Format the result
+        reason = f"**Reason**:\n{reason}\n"
+        output = f"**Output**:\n{model_output_content}"
+        return reason, output
+  #+end_src
+
+  Then we can try to format our output using our new function:
+  #+name: formatoutput
+  #+begin_src python :results output :exports both :tangle no
+    # Extract and print the generated text (only the response part)
+    full_output = outputs[0]["generated_text"]
+    reason, output = format_model_output(full_output)
+    print_markdown(reason + output)
+  #+end_src
+
+  #+RESULTS: formatoutput
+  : Reason: Okay, so I'm trying to explain what electric cars are in simple terms. I know electric cars are cars that use electricity instead of gas, but I'm not exactly sure how they work. Let me think about this step by step.
+  :
+  : First, I remember that cars have engines, and those engines usually use fuel to power the car. So, electric cars must have different systems. I think they have something called an electric motor, which is used in things like fans and washing machines. Maybe electric cars use that motor to power the car.
+  :
+  : Wait, but how does the motor work? I think it's something that converts electrical energy into mechanical energy, making the car move. So, electric cars must have a motor that's powered by electricity.
+  :
+  : I also recall that electric cars might have some special features. Maybe they have automatic transmissions, which automatically shifts gears based on speed or distance, instead of manual transmission which requires human input. That would make driving more efficient and easier.
+  :
+  : Another thing I'm trying to remember is about charging. Electric cars probably have a charging system, maybe a battery, so they can keep charging and extending their range. I think the battery can store a lot of energy, which helps with long drives.
+  :
+  : I should also consider the efficiency. Electric cars are supposed to be more efficient than gasoline-powered cars because they don't produce as much emissions and use less fuel. So, their range is usually longer.
+  :
+  : Wait, but how about the cost? I've heard that electric cars might be more expensive because of maintenance and potentially additional features like electric windows or seats. So, while they're more efficient, they might require more upfront investment.
+  :
+  : I'm also thinking about the environment. Electric cars can run on solar power, which is great for people who don't have solar panels. They can also be used for electric vehicles that use hydrogen fuel cells, which are used in some countries.
+  :
+  : In summary, electric cars are cars powered by electricity instead of fuel. They have electric motors, automatic transmissions, and a battery system to keep charging and extend their range. They are more efficient and have features like automatic driving, solar charging, and hydrogen fuel cells, but they might be more expensive to maintain.
+  :
+  : I think I've got a good grasp of what electric cars are now. I'll try to put it all together in a simple explanation. Output: Electric cars are cars powered by electricity instead of fuel. They have electric motors that convert electrical energy into mechanical energy to move the car. Some electric cars use automatic transmissions for better driving efficiency. They also have a battery system to keep charging and extend their range. Electric cars are more efficient than gasoline-powered cars and can run on solar power. However, they might be more expensive to maintain with features like automatic driving, solar charging, and hydrogen fuel cells.
+
+* Choosing the right model
+  Choosing the right model for the job can be difficult. This section will go
+  over some general steps to make this effort easier. To begin with here are is
+  rough outline for steps that can be taken to choose the right model:
+  1. Define your needs.
+  2. Choose the model type (you might not need generative AI!).
+  3. Choose the right-sized model.
+  4. Select the LLM Sourcing options (Open vs. Closed Source).
+  5. Decide how the solution scales
+
+  We will now go over each step in further detail
+
+** Define your needs
+   The first step is for leadership to identify the specific problem they want
+   to solve.
+
+   *Key Questions to Ask*:
+   - What is the core task? (e.g. summarization, classification, search,
+     generation)
+     - Do you want to improve business intelligence with an AI Chatbot?
+     - Do you want to enhance search capabilities within enterprises with AI?
+   - What is the expected input and output?
+   - Are there data privacy, latency, time to market, build cost constraints, or
+     inference cost constraints?
+
+** Choose the right model type
+   Select the appropriate AI model type. Not every problem needs a generative
+   LLM.
+   | Model Type               | Purpose                                   | Example Use Cases                     | Do you need a generative LLM?   |
+   |--------------------------+-------------------------------------------+---------------------------------------+---------------------------------|
+   | Classification           | Assign a label or category to input text  | Spam detection, sentiment analysis    | No                              |
+   | Named Entity Recognition | Extract specific entities from text       | Extracting names from contacts        | No                              |
+   | Retrieval-Based          | Return relevant documents or responses    | Internal knowledge base search        | No (can be enchanced with LLMs) |
+   | Summarization            | Condense long text into shorter versions  | Legal documents summarization         | Often yes                       |
+   | Text Generation          | Create new content from scratch           | Email drafting, creative writing      | yes                             |
+   | Code Generation          | Generate code snippets from prompts       | Developer tools, SQL query assistants | yes                             |
+   | Translation              | Convert text from one language to another | Multilingual support systems          | yes                             |
+   | Conversational Chatbots  | Maintain a dialogue with users            | Customer support & virtual assistants | yes                             |
+   | Reasoning                | Reasoning ability                         | Provides an explanation for decisions | yes                             |
+
+** Choose the right model size
+   LLMs vary in size depending on the number of parameters (weights) they
+   contain.
+   | Category              | Small/Medium LLM (<50b parameters)                                                                                       | Large/Extra-Large LLM (>50b parameters)                                                                                                 |
+   |-----------------------+--------------------------------------------------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------|
+   | Performance           | Can be improved with fine-tuning                                                                                         | Can achieve better accuracty                                                                                                            |
+   | Cost of inference     | More economical to scale                                                                                                 | More expensive to run                                                                                                                   |
+   | Latency               | Faster generations suitable for interactive applications                                                                 | Slower generations due to more compute required for the larger number of parameters                                                     |
+   | Knowledge             | May not perform as well with deeper level of tasks, but can be optimized with RAG                                        | Can capture more information and variety of tasks                                                                                       |
+   | Understanding         | Lacks in tasks that require complex reasoning                                                                            | Better at understanding context for complex reasoning                                                                                   |
+   | Environmental impact  | Consumes less, lower carbon-footprint                                                                                    | Consumes more, higher carbon-footprint                                                                                                  |
+   | Deployment complexity | Fast and easier to deploy and integrate, especially on edge devices. More accessibility to a broader set of accelerators | Harder to deploy and maintain, requiring a higher level of expertise to manage. Tends to require large and new generation accelerators. |
+
+   Google Tensorflow Playground: https://playground.tensorflow.org/
+
+** Select the LLM sourcing options
+   Businesses have three options to source LLMs:
+   1. Develop an LLM from scratch in-house, utilizing either on-premises or
+      cloud computing resources (GPT-3 costs ~$100M).
+   2. Choose pre-trained open-source LLMs available in the market (Hugging
+      Face).
+   3. Employ pre-trained proprietary LLMs through various cloud services or
+      platforms.
+
+   You might be thinking, open source makes sense, of course! Well, it's not
+   that simple!
+   | Category                      | Open-Source LLM                                                                                                        | Proprietary LLM                                                                          |
+   |-------------------------------+------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------|
+   | Cost                          | Free/low cost, but estimates claim deployment costs can be 50-100% higher.                                             | Requires subscription or usage fees. Most offer free trials.                             |
+   | Time-to-solution              | High time-to-solution since it requires additional expertise to integrate the models to solve for a specific use case. | Low time-to-solution due to integrated offerings tailored to solve enterprise use cases. |
+   | Data provenance and indemnity | Lack of transparency into the data used to train the models make it harder to use in applications.                     | Rigorous checks on source data ensure compliance satisfaction to a high standard.        |
+   | Support and updates           | Community-based support. Updates may be irregular.                                                                     | Professional onboarding support and deployment engineers are available.                  |
+
+** Decide how the solution scales
+   To shift proof of concept (POCs) to full production, businesses need to
+   understand how scaling LLM applications impacts costs, performance, and ROI.
+   - Requirements :: Consider data residency requirements. Some countries
+     require that data collected locally must also be stored locally. Knowing
+     this will help you decide between a multi-tenant, hosted, API-based
+     solution.
+   - Scope :: Estimate your expected data volume and traffic. Many hosted APIs
+     impose rate limits, which can affect user experience and system
+     performance.
+   - Skills :: Identify the skills needed for your preferred solution, from
+     prompt engineering to full model training. You may need a mix of upskilling
+     and new hires depending on the complexity.
+   - Costs :: Assess the end-to-end costs of different
+     approaches. Retrieval-augmented-generation (RAG) models are ideal for
+     frequently changing data but require maintaining a search
+     system. Fine-tuning demands upfront investment, but can deliver long-term
+     savings.
+   - Operations :: Evaluate your operational capabilities, including cost and
+     technical expertise, to decide between in-house deployments or managed
+     services like AWS bedrock.
+
+* Model leaderboards and old/new benchmarks
+  [[https://huggingface.co/spaces/open-llm-leaderboard-old/open_llm_leaderboard][Old Leaderboard]]
+  [[https://huggingface.co/spaces/open-llm-leaderboard/open_llm_leaderboard#/][New Leaderboard]]
+  [[https://huggingface.co/spaces/optimum/llm-perf-leaderboard][Performance Leaderboard]]
+  [[https://huggingface.co/spaces/bigcode/bigcode-models-leaderboard][Big Code Models Leaderboard]]
+  [[https://huggingface.co/spaces/openlifescienceai/open_medical_llm_leaderboard][Medical Leaderboard]]
+
+* Prompting for reasoning and classification
+  This is the core of our project! We need to craft a prompt that tells the
+  DeepSeek model exactly what we want:
+  1. *Analyze* the provided financial news text (~full_text~).
+  2. *Think step-by-step* from a financial perspective: why might this news be
+     positive, negative, or neutral for the mentioned entities or the market?
+  3. *Output the reasoning* clearly labeled.
+  4. *Output the final classification* (one of: Positive, Negative, Neutral)
+     clearly labeled.
+
+  Using clear labels or delimiters in the prompt helps the model structure its
+  output, making it easier for us to parse later.
+
+  *Steps:*
+  1. Define a detailed ~prompt_template~.
+  2. Create a function ~analyze_news_sentiment~ that:
+     - Takes the news text and the LLM pipeline.
+     - Formats the prompt.
+     - Calls the pipeline to generate the response.
+     - Parses the generated text to separate the reasoning from the final classification.
+  3. Test the function on a few news examples.
+
+  Now let's define a new function to analyze sentiments:
+  #+name: analyzefunc
+  #+begin_src python :results none :exports both
+    import re  # Import regular expressions for parsing
+
+    def analyze_news_sentiment(news_text, llm_pipeline):
+        """
+        Analyzes news sentiment using the LLM, providing reasoning and classification.
+
+        Args:
+            news_text (str): The combined title and description of the news.
+            llm_pipeline (transformers.pipeline): The initialized text-generation pipeline.
+
+        Returns:
+            str: A string containing the reasoning and classification.
+        """
+
+        # Define the Prompt Template with specific instructions for the model
+        test_question = f"""You are a concise Financial News Analyst.
+        Analyze the provided news text. Output ONLY the three requested items below, each on a new line, prefixed with the specified label.
+
+        1.  REASONING: Brief financial reasoning (1-2 points max) for the sentiment.
+        2.  SENTIMENT: Choose ONE: Positive, Negative, Neutral.
+        3.  TAG: A concise topic tag (1-3 words).
+
+        Do NOT add any other text, greetings, or explanations.
+
+        News Text:
+        {news_text}"""
+
+        # Format the prompt according to DeepSeek's expected input format with thinking tags
+        test_prompt = f"<|im_start|>user\n{test_question}<|im_end|>\n<|im_start|>assistant\n<think>\n"
+
+        # Print the prompt for debugging purposes to verify what's being sent to the model
+        print(f"Test prompt:\n{test_prompt}")
+
+        # Run the model inference with specific generation parameters
+        outputs = llm_pipeline(
+            test_prompt,
+            max_new_tokens = 4000,
+            do_sample = True,
+            temperature = 0.7,
+            top_p = 0.9)
+
+        # Extract the full generated text and parse it to separate reasoning from classification
+        # The format_model_output function likely separates the thinking process from the final answer
+        full_output = outputs[0]["generated_text"]
+        reason, output = format_model_output(full_output)
+
+        # Return both the reasoning process and the final sentiment classification
+        return reason, output
+  #+end_src
+
+  Let's try out our new function:
+  #+name: firstanalyze
+  #+begin_src python :results output :exports both
+    # Print a separator line for clarity in the output
+    print("\n" + "=" * 30 + " TESTING ANALYSIS " + "=" * 30)
+
+
+    # Select a few random indices from the news dataset to test the analysis function
+    random_indices = random.sample(range(len(news_dataset)), 3)
+
+    # Iterate over each randomly selected index
+    for index in random_indices:
+        # Retrieve the full text of the news item at the current index
+        sample_news = news_dataset[index]["full_text"]
+
+        # Analyze the sentiment of the sample news using the sentiment analysis function
+        reason, output = analyze_news_sentiment(sample_news, llm_pipeline)
+
+        # Print the analysis result header for the current index
+        print(f"\n--- Analysis Result for Index {index} ---")
+
+        # Display the reasoning and output in a formatted markdown style
+        print_markdown(f"{reason}\n\n{output}")
+
+        # Print a separator line for better readability between results
+        print("-" * 60)
+  #+end_src
+
+  #+RESULTS: firstanalyze
+  : ============================== TESTING ANALYSIS ==============================
+  : Test prompt:
+  : <|im_start|>user
+  : You are a concise Financial News Analyst.
+  :     Analyze the provided news text. Output ONLY the three requested items below, each on a new line, prefixed with the specified label.
+  :
+  :     1.  REASONING: Brief financial reasoning (1-2 points max) for the sentiment.
+  :     2.  SENTIMENT: Choose ONE: Positive, Negative, Neutral.
+  :     3.  TAG: A concise topic tag (1-3 words).
+  :
+  :     Do NOT add any other text, greetings, or explanations.
+  :
+  :     News Text:
+  :     Title: 
+  : Description: <|im_end|>
+  : <|im_start|>assistant
+  : <think>
+  :
+  :
+  : --- Analysis Result for Index 1071 ---
+  : Reason: Okay, I need to analyze the provided news text. The user has specified three items: reasoning, sentiment, and a tag.
+  :
+  : First, I'll read through the news text to understand the main points. The title is missing, but the description mentions a financial article focusing on a company's performance. It details the revenue growth and mentions a dividend, which is positive.
+  :
+  : For the reasoning, I'll note that the company's revenue increased and they're also distributing dividends, indicating positive growth.
+  :
+  : The sentiment here is positive because both revenue expansion and dividend distribution show good performance.
+  :
+  : The topic tag should be concise. Combining "REVENUE GROWTH" and "Dividend Distribution" gives "REVENUE GROWTH AND DIVIDEND DISTRIBUTION," which is clear and covers the key points without being too wordy.
+  :
+  : Output:
+  :
+  : REASONING: Positive, as the company's revenue growth and dividend distribution indicate strong performance.
+  : SENTIMENT: Positive
+  : TAG: REVENUE GROWTH AND DIVIDEND DISTRIBUTION
+  : ------------------------------------------------------------
+  : Test prompt:
+  : <|im_start|>user
+  : You are a concise Financial News Analyst.
+  :     Analyze the provided news text. Output ONLY the three requested items below, each on a new line, prefixed with the specified label.
+  :
+  :     1.  REASONING: Brief financial reasoning (1-2 points max) for the sentiment.
+  :     2.  SENTIMENT: Choose ONE: Positive, Negative, Neutral.
+  :     3.  TAG: A concise topic tag (1-3 words).
+  :
+  :     Do NOT add any other text, greetings, or explanations.
+  :
+  :     News Text:
+  :     Title: 
+  : Description: <|im_end|>
+  : <|im_start|>assistant
+  : <think>
+  :
+  :
+  : --- Analysis Result for Index 1127 ---
+  : Reason: Alright, let me try to figure out what the user is asking for here. They provided a news text and asked for three specific items: a reasoning, sentiment, and a tag. The user mentioned they don't want any additional text or explanations, just the three items on separate lines.
+  :
+  : First, I need to parse the provided news text. The title is mentioned, but it's cut off, so I can't get the exact content. I'll assume that the main point is about the economy, maybe talking about rising interest rates or economic growth. That's a common theme in financial news.
+  :
+  : For the reasoning, since the exact details are missing, I'll have to make educated guesses. If the news is about rising interest rates, the reasoning could be that the Federal Reserve might raise rates to combat inflation. That's a neutral sentiment.
+  :
+  : The sentiment here would be Neutral because the reasoning doesn't lean towards positive or negative. It's just a typical economic analysis without extreme statements.
+  :
+  : Now, the tag. It needs to be concise, one word. Since the reasoning is about rising rates, I can think of "Rising Rates" as a tag. But maybe "Rising Interest Rates" is better because it's more descriptive. However, since the user asked for one word, I'll go with "Rising Rates" as a tag.
+  :
+  : Wait, but in the previous example, the user had "Rising Rates" as a tag. Maybe I should stick with that. Alternatively, "Rising Interest Rates" could be a bit more descriptive, but since the user asked for one word, "Rising Rates" seems appropriate.
+  :
+  : Let me double-check. The sentiment is neutral, the reasoning is about rising interest rates, and the tag is "Rising Rates." That seems to cover all the requirements without adding any extra text or explanations. I'll make sure to format each item on a new line as specified.
+  :
+  : Output:
+  :
+  : REASONING: The reasoning is based on the assumption that the news is about rising interest rates, which could be a neutral sentiment in the context of economic analysis.
+  : SENTIMENT: Neutral.
+  : TAG: Rising Rates.
+  : ------------------------------------------------------------
+  : Test prompt:
+  : <|im_start|>user
+  : You are a concise Financial News Analyst.
+  :     Analyze the provided news text. Output ONLY the three requested items below, each on a new line, prefixed with the specified label.
+  :
+  :     1.  REASONING: Brief financial reasoning (1-2 points max) for the sentiment.
+  :     2.  SENTIMENT: Choose ONE: Positive, Negative, Neutral.
+  :     3.  TAG: A concise topic tag (1-3 words).
+  :
+  :     Do NOT add any other text, greetings, or explanations.
+  :
+  :     News Text:
+  :     Title: 
+  : Description: <|im_end|>
+  : <|im_start|>assistant
+  : <think>
+  :
+  :
+  : --- Analysis Result for Index 288 ---
+  : Reason: Okay, so I'm looking at this user query. They want me to act as a Financial News Analyst and analyze a provided news text. The task is to extract three specific items: REASONING, Sentiment, and TAG. Each item has a label and a specific format.
+  :
+  : First, I need to parse the news text provided. The title is empty, and the description is also not filled in. So, I'm not sure what the content of the news is. Without the title and description, it's impossible to determine the sentiment or the topic tag. I can't gather information from an empty text, so I can't provide any meaningful analysis.
+  :
+  : I should respond by informing the user that there's no content to analyze. That's clear. I can't proceed further because I don't have the necessary information. It's important to be concise and avoid any extra text, so I'll stick to the instructions and just say that the provided news text doesn't contain any content.
+  :
+  : Output: There is no content provided in the news text.
+  :
+  : ------------------------------------------------------------
+
+* Building the gradio interface
+  Let's wrap our analysis function in a user-friendly Gradio interface. Users
+  should be able to see a random news item and click a button to get the
+  sentiment analysis (including reasoning).
+
+  *Interface Elements*:
+  - A Textbox to display the news item (~full_text~).
+  - A button to fetch a new random news item.
+  - A button to trigger the analysis.
+  - Two Textboxes (or Markdown elements) to display the Reasoning and the
+    Classification separately.
+
+  Here is our gradio interface:
+  #+name: gradio
+  #+begin_src python :results none :exports both
+    import gradio as gr  # Importing the Gradio library for creating the web interface
+    import random  # Importing the random library to generate random numbers
+    import re  # Importing the regular expressions library (not used in this snippet)
+    from transformers import pipeline  # Importing the pipeline function from transformers for model loading
+
+    # --- Gradio Helper Functions ---
+    def get_random_news():
+        """Fetches and returns the full_text of a random news item."""
+        if not news_dataset:  # Check if the news dataset is empty
+            return "Error: No news items available."  # Return an error message if no news items are found
+        random_index = random.randint(0, len(news_dataset) - 1)  # Generate a random index to select a news item
+        news_text = news_dataset[random_index]['full_text']  # Retrieve the full text of the news item at the random index
+        print(f"Fetched news item at index {random_index}")  # Print the index of the fetched news item
+        return news_text  # Return the fetched news text
+
+    def perform_analysis(news_text):
+        """Triggers analysis on the provided news text."""
+        if not news_text or news_text.startswith("Error"):  # Check if the news text is empty or an error message
+            return "Error: No news text to analyze."  # Return an error message if no valid news text is provided
+        print(f"Analyzing news: {news_text[:50]}...")  # Print the first 50 characters of the news text being analyzed
+        reason, output = analyze_news_sentiment(news_text, llm_pipeline)  # Analyze the sentiment of the news text
+        return reason, output  # Return the reasoning and output from the analysis
+
+    # --- Build Gradio Interface ---
+    with gr.Blocks(theme=gr.themes.Glass()) as demo:  # Create a Gradio Blocks interface with a glass theme
+        gr.Markdown("""
+        # DeepSeek Financial News Analyzer
+        Fetches a random news item from the dataset.
+        Click 'Analyze News' to get sentiment classification and the model's reasoning.
+
+        """)
+
+        with gr.Row():  # Create a row for buttons
+            btn_fetch = gr.Button("🔄 Fetch Random News Item")  # Button to fetch a random news item
+            btn_analyze = gr.Button("💡 Analyze News", variant="primary")  # Button to analyze the news
+
+        news_display = gr.Textbox(  # Textbox to display the news item
+            label="📰 News Text (Title & Description)",  # Label for the textbox
+            lines=8,  # Number of lines in the textbox
+            interactive=False,  # Make the textbox non-interactive
+            placeholder="Click 'Fetch Random News Item' to display news."  # Placeholder text
+        )
+        # Creates a collapsible panel
+        with gr.Accordion("🤖 Model Reason", open=True):  # Accordion for model reasoning
+            analysis_display = gr.Markdown()  # Markdown display for the reasoning
+
+        with gr.Accordion("🤖 Model Output", open=True):  # Accordion for model output
+            analysis_output = gr.Markdown()  # Markdown display for the output
+
+        # --- Event Handlers ---
+        btn_fetch.click(  # Set up click event for the fetch button
+            fn=get_random_news,  # Function to call when the button is clicked
+            inputs=[],  # No inputs needed
+            outputs=[news_display]  # Output to the news display textbox
+        )
+
+        btn_analyze.click(  # Set up click event for the analyze button
+            fn=perform_analysis,  # Function to call when the button is clicked
+            inputs=[news_display],  # Input from the news display textbox
+            outputs=[analysis_display, analysis_output]  # Outputs to the reasoning and output displays
+        )
+
+        # Load initial news item when the app starts
+        demo.load(  # Load function to run when the app starts
+            fn=get_random_news,  # Function to call to get a random news item
+            inputs=None,  # No inputs needed
+            outputs=[news_display]  # Output to the news display textbox
+        )
+
+    # --- Launch the Gradio App ---
+    print("Launching Gradio demo...")  # Print message indicating the app is launching
+    demo.launch(debug=True)  # Launch the Gradio app in debug mode
+  #+end_src
