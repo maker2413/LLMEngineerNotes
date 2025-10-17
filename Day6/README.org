@@ -501,11 +501,61 @@ What We'll Build is a system that:
      services like AWS bedrock.
 
 * Model leaderboards and old/new benchmarks
-  [[https://huggingface.co/spaces/open-llm-leaderboard-old/open_llm_leaderboard][Old Leaderboard]]
-  [[https://huggingface.co/spaces/open-llm-leaderboard/open_llm_leaderboard#/][New Leaderboard]]
-  [[https://huggingface.co/spaces/optimum/llm-perf-leaderboard][Performance Leaderboard]]
-  [[https://huggingface.co/spaces/bigcode/bigcode-models-leaderboard][Big Code Models Leaderboard]]
-  [[https://huggingface.co/spaces/openlifescienceai/open_medical_llm_leaderboard][Medical Leaderboard]]
+  This section goes over how you can view leaderboards and bench marks for open
+  source models on Hugging Face. There are currently two leaderboards on Hugging
+  Face because the original benchmarks, which were thought to be very hard for
+  LLMs to get a high score on have been obliterated by LLMs. This means the old
+  leaderboards are now obsolete, but they are still available. The "new"
+  leaderboards have also been obsoleted at the time of writing this because
+  models have yet again gotten to a point where they are above 80% in almost
+  all tests and the leaderboards team at Hugging Face don't want to encourage
+  people training models in a certain direction to squeeze out the last few
+  percentages ([[https://huggingface.co/spaces/open-llm-leaderboard/open_llm_leaderboard/discussions/1135][Source]]). These newer leaderboards are also still publicly
+  viewable though:
+  - [[https://huggingface.co/spaces/open-llm-leaderboard-old/open_llm_leaderboard][Old Leaderboard]]
+  - [[https://huggingface.co/spaces/open-llm-leaderboard/open_llm_leaderboard#/][New Leaderboard]]
+
+** Common benchmarks to compare LLMs
+   These explain what the old benchmarks test LLMs for:
+   | Benchmark  | Full Name                                            | Skill Evaluated             | Purpose/Description                                                                  |
+   |------------+------------------------------------------------------+-----------------------------+--------------------------------------------------------------------------------------|
+   | DROP       | Discrete Reasoning Over Paragraphs                   | Reading Comprehension       | Evaluates the ability to extract, count, and manipulate information from paragraphs. |
+   | HellaSwag  | Harder Endings, Longer Contexts, Low Shot Activities | Common Sense                | Assesses common sense reasoning with complex, nuanced scenarios.                     |
+   | MMLU       | Massive Multitask Language Understanding             | Understanding               | Covers factual recall & problem-solving across 57 academic subjects.                 |
+   | ARC        | AI2 Reasoning Challenge                              | Logical Reasoning           | Tests scientific and abstract reasoning through multiple-choice questions.           |
+   | TruthfulQA | Truthful Question Answering                          | Truthfulness and Robustness | Measures a model's ability to resist producing false or misleading answers.          |
+   | Winogrande | A variant of the Winograd Schema Challenge           | Context                     | Tests whether the model resolves ambiguities in sentence structure.                  |
+   | GSM8K      | Grade School Math 8K                                 | Math Problem Solving        | Focuses on solving grade-school-level math.                                          |
+   | HumanEval  | Human Evaluation of Code Generation                  | Code Generation             | Evaluates coding abilities by generating code from problem descriptions.             |
+   | MT-Bench   | Multi-Turn Benchmark                                 | Dialogue Quality            | Assesses multi-turn conversation quality, coherence, and helpfulness.                |
+
+   For further information:
+   - [[https://arxiv.org/abs/1903.00161][DROP Research Paper]]
+   - [[https://arxiv.org/abs/1905.07830][HellaSwag Research Paper]]
+
+** New (Harder) benchmarks for LLMs & AI agents
+   These explain what the "new" benchmarks test LLMs for:
+   | Benchmark                  | Category | What it tests?                                                                                                                                                                                                       |
+   |----------------------------+----------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+   | HLE (Humanity's Last Exam) | LLM      | 2500 challenging questions handcrafted to challenge superintelligence-level generalization                                                                                                                           |
+   | GPQA                       | LLM      | Graduate-level Google-Proof Q&A (GPQA) features PhD-level multiple-choice questions in Chemistry, Biology, and Physics designed to test deep conceptual understanding beyond simple online searches (Google Proof!). |
+   | MuSR                       | LLM      | Multistep Soft Reasoning (MuSR) focuses on reasoning through and understanding long texts, emphasizing deep language comprehension.                                                                                  |
+   | BBH (Big-Bench Hard)       | LLM      | Big Bench Hard (BBH) is a collection of challenging tasks for LLMs across domains such as language understanding, mathematical reasoning, and common sense/world knowledge.                                          |
+   | IFEval                     | LLM      | Instruction-Following Evaluation (IFEval) tests a model's ability to follow explicit instructions related to formatting, instruction compliance, and content generation.                                             |
+   | MATH                       | LLM      | Mathematics Aptitude Test of Heuristics (MATH), level 5. It includes hard math competition-level questions.                                                                                                          |
+   | MMLU-Pro                   | LLM      | Massive Multitask Language Understanding - Professional (MMLU-Pro) features expertly reviewed multiple-choice questions across diverse domains such as medicine, law, engineering, and mathematics.                  |
+   | AgentBench                 | AI Agent | Multi-step digital tasks requiring memory and reasoning.                                                                                                                                                             |
+   | WebArena                   | AI Agent | Real-time web browsing, unexpected layouts.                                                                                                                                                                          |
+   | ToolBench                  | AI Agent | Tool chaining, decision making.                                                                                                                                                                                      |
+   | CO2 Cost                   | Meta     | Useful for sustainability evaluation of different models.                                                                                                                                                            |
+
+** Other leaderboards
+   There are also other leaderboards worth mentioning. These are community
+   driven leaderboards that are noteworth because they focus on specific tasks:
+   - [[https://huggingface.co/spaces/optimum/llm-perf-leaderboard][Performance Leaderboard]] :: Used to measure runtime latency and compute
+     required to run.
+   - [[https://huggingface.co/spaces/bigcode/bigcode-models-leaderboard][Big Code Models Leaderboard]] :: Used to measure coding capabilities.
+   - [[https://huggingface.co/spaces/openlifescienceai/open_medical_llm_leaderboard][Medical Leaderboard]] :: Used to measure medical applications.
 
 * Prompting for reasoning and classification
   This is the core of our project! We need to craft a prompt that tells the
