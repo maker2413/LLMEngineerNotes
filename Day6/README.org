@@ -853,3 +853,29 @@ What We'll Build is a system that:
     print("Launching Gradio demo...")  # Print message indicating the app is launching
     demo.launch(debug=True)  # Launch the Gradio app in debug mode
   #+end_src
+
+* Summary
+  That concludes our project on building a news classification program. In this
+  section we learned that:
+  - Not all LLMs are created equal; models like DeepSeek require structured,
+    logical thought processes and differ significantly from general-purpose
+    conversational models. It's important to assess your use case and match it
+    with the appropriate model type.
+  - Efficient use of the Hugging Face datasets library can greatly streamline
+    the data workflow; loading preprocessing, and managing data becomes much
+    easier and standardized for downstream tasks.
+  - Crafting clear, goal-driven prompts that enforce output structure
+    (e.g. reasoning then classification) enhances model reliability and
+    interpretability.
+  - Being able to dissect the model's output to separate reasoning steps from
+    final answers is a critical skill for tasks requiring auditability or deeper
+    analysis of model behavior.
+  - Using LLMs for classification introduces a layer of explainability not
+    always present in traditional classifiers. This enables users to understand
+    why a decision was made, not just what the decision is.
+  - Navigating leaderboards helps practitioners make informed decisions about
+    which LLM to use based on performance benchmarks; especially when choosing
+    between open vs close source solutions.
+  - Implementing a structured approach to selecting the right model ensures
+    alignment with specific business goals, resource constraints, and
+    performance requirements.
