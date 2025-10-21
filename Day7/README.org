@@ -1,0 +1,239 @@
+#+TITLE: Day 7
+#+PROPERTY: header-args:python :session day7
+#+PROPERTY: header-args:python+ :tangle main.py
+#+PROPERTY: header-args:python+ :results value
+#+PROPERTY: header-args:python+ :shebang "#!/usr/bin/env python"
+
+In our previous project, we explored running DeepSeek to classify financial news
+articles. Now we are going to be building an AI assistant that can answer
+questions based on documents that we provide.
+
+#+BEGIN_SRC elisp :exports none :results none
+  (setq org-babel-python-command (concat
+                                  (file-name-directory (or load-file-name (buffer-file-name)))
+                                  ".venv/bin/python"))
+#+END_SRC
+
+#+begin_src python :exports none :results none
+  # This file was generated from the README.org found in this directory
+#+end_src
+
+In this section we are going to learn a really powerful technique called RAG, or
+Retrieval augmented generation. We are also going to leverage a super powerful
+tool called LangChain.
+
+In this project we'll build an AI assistant that can answer questions about a
+specific topic (the Eleven Madison Park restaurant) based on provided documents
+in a database. This technique is called Retrieval-Augmented Generation (RAG).
+
+*Workflow*:
+1. *Input Text*: "What kind of food does Eleven Madison Park Restaurant serve?"
+2. *Database Search*: The assistant will search the database to find relevant
+   information.
+3. *Fetch Information*: The assistant will Fetch any context it found relevant.
+4. *Output Text*: "Eleven Madison Park serves a fully plant-based menu, using no
+   animal products."
+
+* Key learning outcomes
+  This section will have us:
+  - Understand the core principals of Retrieval-Augmented Generation (RAG).
+  - Use LangChain to streamline and orchestrate the RAG workflow.
+  - Load, preprocess, and split text documents for optimal performance.
+  - Generate high-quality embeddings using OpenAI models.
+  - Store and search embeddings efficiently with ChromaDB as your vector
+    database.
+  - Build a powerful Retrieval-Based Question Answering (QA) chain using
+    LangChain.
+  - Design an interactive Gradio UI that displays answers along with source
+    citations for transparency.
+
+* Understanding RAG
+  RAG is a technique that combines retrieval-based systems with generative AI
+  models. It's commonly used to enhance the capabilities of LLMs by integrating
+  external knowledge sources.
+  - *R*: Lookup the external source to retrieve the relevant information.
+  - *A*: Add the retrieved information to the user prompt.
+  - *G*: Use LLM to generate a response to the user prompt with the context.
+
+  To exhaust this even more let's break down the actual flow:
+  1. The user writes a prompt or a query that is passed to an orchestrator.
+  2. The orchestrator sends a search query to the retriever.
+  3. Retriever fetches the relevant information from the knowledge sources and
+     sends back.
+  4. The orchestrator augments the prompt with the context and sends it to the
+     LLM.
+  5. LLM responds with the generated text which is displayed to the user via the
+     orchestrator.
+
+** Why use RAG?
+   RAG is used for a number of reasons, but some key points are:
+   - *Accurate Responses*: Combines retrieval with generative AI to ground
+     outputs in factual data, minimizing errors.
+   - *Up-to-Date Information*: Dynamically accesses the latest content, ensuring
+     relevance without retraining.
+   - *Cost-Efficient*: Reduces computational burden by relying on retrieval for
+     context, cutting costs.
+   - *Customizable*: Easily tailored to specific industries and domains with
+     custom datasets.
+   - *Explainable*: Increases trust by surfacing the data sources behind
+     generated responses.
+
+** Fine tuning vs RAG
+   | Aspect       | Fine-Tuning                                                                                       | Retrieval-Augmented Generation (RAG)                                                             |
+   |--------------+---------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------|
+   | What it is   | Training the base model (e.g GPT) on a specific dataset to adapt it to a particular use case.     | Combines GPT's language generation with a retrieval mechanism that fetches external information. |
+   | How it works | Provide a labeled dataset tailored to your task.                                                  | A document or database is indexed using a vector database.                                       |
+   |              | Retrain the model using this data, updating its weights.                                          | When queried, retrieves the most relevant chunks using similarity search.                        |
+   |              |                                                                                                   | GPT generation responses by combining retrieved information with general knowledge.              |
+   | Use case     | Useful for well-structured, high-quality datasets and niche understanding.                        | Ideal for applications requiring up-to-date or domain specific knowledge without retraining.     |
+   |              | Requires compute resources and training expertise.                                                |                                                                                                  |
+   | Advantages   | Deeply integrates the knowledge from the dataset.                                                 | Does not require retraining the model; integrates external knowledge.                            |
+   |              |                                                                                                   | Easier to maintain; data can be updated without modifying the model.                             |
+   |              |                                                                                                   | Cost-effective compared to fine-tuning.                                                          |
+   | Drawbacks    | Expensive and time-consuming.                                                                     | Relies on the quality of the retrieval system and indexed data.                                  |
+   |              | Locks the model into a specific knowledge set, limiting flexibility for dynamic or broad queries. | Retrieval may fail if documents are poorly indexed or irrelevant data is fetched.                |
+
+* LangChain 101
+  LangChain is a framework designed to help developers build applications using
+  large language models more effectively. Instead of just sending one prompt and
+  getting one reply, LangChain lets you chain together different components
+  (like prompts, memory, tools, retrieval from documents, etc.) to build more
+  complex, smarter applications.
+
+** LangChain Features
+   Here are just some of the key features LangChain provides:
+   - *Chains*: You can link together multiple steps or calls to a model.
+     - *Example*: Ask a question -> Search Wikipedia -> Summarize -> Translate
+       the summary.
+   - *Agents*: LLMs that decide which tools to use and when. Think of them like
+     smart assistants that can use calculators, databases, or search engines
+     when needed.
+   - *Tools/Plugins*: Connect your LLM to Google search, Python code execution,
+     file reading, etc.
+     - *Example*: "What's 347 * 65?" -> LLM uses a calculator tool to answer
+       accurately.
+   - *Memory*: Keeps track of the conversation history or user
+     preferences. Makes interactions more contextual and human-like.
+   - *Retrieval-Augmented Generation (RAG)*: Connect LLM to your documents
+     (databases, websites). It retrieves relevant info from them to answer
+     questions accurately.
+
+** Setup
+   Now let's setup our initial libraries for our program:
+   #+name: setup
+   #+begin_src python :results none :exports both
+     # Let's install and import OpenAI Package
+     !pip install --upgrade openai
+     from openai import OpenAI  
+
+     # Let's import os, which stands for "Operating System"
+     import os
+
+     # This will be used to load the API key from the .env file
+     from dotenv import load_dotenv
+     load_dotenv()
+
+     # Get the OpenAI API keys from environment variables
+     openai_api_key = os.getenv("OPENAI_API_KEY")
+
+     # Let's configure the OpenAI Client using our key
+     openai_client = OpenAI(api_key=openai_api_key)
+   #+end_src
+
+   To debug we can even print our API key:
+   #+name: debugsetup
+   #+begin_src python :results output :exports both :tangle no
+     print("OpenAI client successfully configured.")
+
+     # Let's view the first few characters in the key
+     print(openai_api_key[:15])
+   #+end_src
+
+   We should also import the LangChain libraries we need:
+   #+name: langchainimport
+   #+begin_src python :results none :exports both
+     from langchain_openai import OpenAIEmbeddings, OpenAI
+     from langchain.vectorstores import Chroma
+     from langchain.text_splitter import RecursiveCharacterTextSplitter
+     from langchain.document_loaders import TextLoader
+     from langchain.chains import RetrievalQAWithSourcesChain 
+   #+end_src
+
+   Then we can set our datafile:
+   #+name: datafile
+   #+begin_src python :results output :exports both
+     # Define the path to your data file
+     # Ensure 'eleven_madison_park_data.txt' is in the same folder as this notebook
+     DATA_FILE_PATH = "eleven_madison_park_data.txt"
+     print(f"Data file path set to: {DATA_FILE_PATH}")
+   #+end_src
+
+   Let's load our datafile:
+   #+name: loaddatafile
+   #+begin_src python :results output :exports both
+     # Let's load Eleven Madison Park Restaurant data, which has been scraped from their website
+     # The data is saved in "eleven_madison_park_data.txt", Langchain's TextLoader makes this easy to read
+     print(f"Attempting to load data from: {DATA_FILE_PATH}")
+
+     # Initialize the TextLoader with the file path and specify UTF-8 encoding
+     # Encoding helps handle various characters correctly
+     loader = TextLoader(DATA_FILE_PATH, encoding = "utf-8")
+
+     # Load the document(s) using TextLoader from LangChain, which loads the entire file as one Document object
+     raw_documents = loader.load()
+     print(f"Successfully loaded {len(raw_documents)} document(s).")
+   #+end_src
+
+   To confirm we loaded everything properly let's print a few characters from
+   our datafile:
+   #+name: debugdatafile
+   #+begin_src python :results output :exports both :tangle no
+     # Let's display a few characters of the loaded content to perform a sanity check!
+     print(raw_documents[0].page_content[:500] + "...")
+   #+end_src
+
+* Splitting documents
+  Large documents are hard for AI models to process efficiently and make it
+  difficult to find specific answers. We need to split the loaded document into
+  smaller, manageable "chunks". We'll use Langchain's
+  ~RecursiveCharacterTextSplitter~.
+  - *Why chunk?*: Smaller pieces are easier to embed, store, and retrieve accurately.
+  - *chunk_size*: Max characters per chunk.
+  - *chunk_overlap*: Characters shared between consecutive chunks (helps maintain context).
+
+  Now let's split the document into chunks:
+  #+name: splitdocument
+  #+begin_src python :results output :exports both
+    # Let's split the document into chunks
+    print("\nSplitting the loaded document into smaller chunks...")
+
+    # Let's initialize the splitter, which tries to split the document on common separators like paragraphs (\n\n),
+    # sentences (.), and spaces (' ').
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size = 1000,  # Aim for chunks of about 1000 characters
+                                                   chunk_overlap = 150,)  # Each chunk overlaps with the previous by 150 characters
+
+    # Split the raw document(s) into smaller Document objects (chunks)
+    documents = text_splitter.split_documents(raw_documents)
+
+    # Check if splitting produced any documents
+    if not documents:
+        raise ValueError("Error: Splitting resulted in zero documents. Check the input file and splitter settings.")
+    print(f"Document split into {len(documents)} chunks.")
+  #+end_src
+
+  We should now be able to print a sample chunk of our document:
+  #+name: debugsplitdocument
+  #+begin_src python :results output :exports both :tangle no
+    # Let's display an example chunk and its metadata
+    print("\n--- Example Chunk (Chunk 2) ---")
+    print(documents[2].page_content)
+    print("\n--- Metadata for Chunk 2 ---")
+    print(documents[2].metadata) # Should show {'source': 'eleven_madison_park_data.txt'}
+  #+end_src
+
+* Embeddings and vector store creation
+  Now, we convert our text chunks into *embeddings* (numerical vectors) using
+  OpenAI. Similar text chunks will have similar vectors. We then store these
+  vectors in a *vector store* (ChromaDB) for fast searching.
+  - *Embeddings*: Text -> Numbers (Vectors) representing meaning.
+  - *Vector Store*: Database optimized for searching these vectors.
