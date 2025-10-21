@@ -16,3 +16,5 @@ This course was broken up into days and I have notes on the following days:
   - [[./Day4/README.org][Day 4]]: Building landing pages using AI
 - *Section 2*: Open Source
   - [[./Day5/README.org][Day 5]]: Hugging Face
+  - [[./Day6/README.org][Day 6]]: Hugging Face Part 2
+  - [[./Day7/README.org][Day 7]]: RAG & LangChain

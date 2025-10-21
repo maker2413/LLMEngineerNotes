@@ -396,3 +396,279 @@ in a database. This technique is called Retrieval-Augmented Generation (RAG).
    We can see in this output that the first chunk is the human readable text
    that we understand. The second block of output is the embedding vector that
    the AI model sees and works with.
+
+* Testing the Retrieval
+  Before building the full Q&A chain, let's test if our vector store can find
+  relevant chunks based on a sample question. We'll use the ~similarity_search~
+  method:
+  #+name: testingretrieval
+  #+begin_src python :results output :exports both :tangle no
+    # Let's perform a similarity search in our vector store
+    print("\n--- Testing Similarity Search in Vector Store ---")
+    test_query = "What different menus are offered?"
+    print(f"Searching for documents similar to: '{test_query}'")
+
+
+    # Perform a similarity search. 'k=2' retrieves the top 2 most similar chunks
+    try:
+        similar_docs = vector_store.similarity_search(test_query, k = 2)
+        print(f"\nFound {len(similar_docs)} similar documents:")
+
+        # Display snippets of the retrieved documents and their sources
+        for i, doc in enumerate(similar_docs):
+            print(f"\n--- Document {i+1} ---")
+            # Displaying the first 700 chars for brevity
+            content_snippet = doc.page_content[:700].strip() + "..."
+            source = doc.metadata.get("source", "Unknown Source")  # Get source from metadata
+            print(f"Content Snippet: {content_snippet}")
+            print(f"Source: {source}")
+
+    except Exception as e:
+        print(f"An error occurred during similarity search: {e}")
+  #+end_src
+
+  Here we can see what relevant chunks of data it found from our question:
+  #+RESULTS: testingretrieval
+  #+begin_example
+
+  --- Testing Similarity Search in Vector Store ---
+  Searching for documents similar to: 'What different menus are offered?'
+
+  Found 2 similar documents:
+
+  --- Document 1 ---
+  Content Snippet: FAQs We are located at 11 Madison Avenue, on the northeast corner of East 24th and Madison Avenue, directly across the street from Madison Square Park. We offer three menus, all 100% plant-based: Full Tasting Menu : An eight- to nine-course experience priced at $365 per guest. This menu typically lasts about two to three hours and features a mix of plated and communal dishes. 5-Course Menu : Priced at $285 per guest, this menu highlights selections from the Full Tasting Menu and lasts approximately two hours. Bar Tasting Menu : Available in our lounge for $225 per guest, this menu includes four to five courses and is designed to last around two hours. Note : These durations are estimates bas...
+  Source: eleven_madison_park_data.txt
+
+  --- Document 2 ---
+  Content Snippet: Reservations are available via Resy , and bar seating is open for both walk-ins and reservations. Hours: Monday to Wednesday: 5:30 pm to 10 pm Thursday to Friday: 5 pm to 11 pm Saturday: 12 pm to 2 pm, 5 pm to 11 pm Sunday: 12 pm to 2 pm, 5 pm to 11 pm View Wine List View Cocktail List Due to the hyper-seasonal nature of our menu, all courses are subject to change. Therefore, we do not share our food menus online. Book on Resy...
+  Source: eleven_madison_park_data.txt
+  #+end_example
+
+* Building & testing the RAG chain using LangChain
+  Now we assemble the core RAG logic using Langchain's
+  ~RetrievalQAWithSourcesChain~. This chain combines:
+    1. A *Retriever*: Fetches relevant documents from our ~vector_store~.
+    2. An *LLM*: Generates the answer based on the question and retrieved
+       documents (we'll use OpenAI).
+
+  This specific chain type automatically handles retrieving documents,
+  formatting them with the question for the LLM, and tracking the sources.
+
+  So let's implement the retriever:
+  #+name: retreiver
+  #+begin_src python :results output :exports both
+    # --- 1. Define the Retriever ---
+    # The retriever uses the vector store to fetch documents
+    # We configure it to retrieve the top 'k' documents
+    retriever = vector_store.as_retriever(search_kwargs={"k": 3})
+    print("Retriever configured successfully from vector store.")
+
+    # --- 2. Define the Language Model (LLM) from OpenAI---
+    # Temperature controls the model's creativity; 'temperature=0' aims for more factual, less creative answers
+    # You might need to specify a more powerful model, such as "gpt-3.5-turbo-instruct"
+    llm = OpenAI(temperature = 1.3, openai_api_key = openai_api_key)
+    print("OpenAI LLM successfully initialized.")
+
+    # --- 3. Create the RetrievalQAWithSourcesChain ---
+    # This chain type is designed specifically for Q&A with source tracking.
+    # chain_type="stuff": Puts all retrieved text directly into the prompt context.
+    #                      Suitable if the total text fits within the LLM's context limit.
+    #                      Other types like "map_reduce" handle larger amounts of text.
+    qa_chain = RetrievalQAWithSourcesChain.from_chain_type(llm = llm,
+                                                           chain_type = "stuff",
+                                                           retriever = retriever,
+                                                           return_source_documents = True,  # Request the actual Document objects used
+                                                           verbose = True)  # Set to True to see Langchain's internal steps (can be noisy)
+
+    print("RetrievalQAWithSourcesChain created")
+  #+end_src
+
+  #+RESULTS: retreiver
+  : Retriever configured successfully from vector store.
+  : OpenAI LLM successfully initialized.
+  : RetrievalQAWithSourcesChain created
+
+  Like usual we should debug our retreiver:
+  #+name: debugretreiver
+  #+begin_src python :results output :exports both :tangle no
+    # --- Test the Full Chain ---
+    print("\n--- Testing the Full RAG Chain ---")
+    chain_test_query = "What kind of food does Eleven Madison Park serve?"
+    print(f"Query: {chain_test_query}")
+
+    # Run the query through the chain. Use invoke() for Langchain >= 0.1.0
+    # The input must be a dictionary, often with the key 'question'.
+    try:
+        result = qa_chain.invoke({"question": chain_test_query})
+
+        # Print the answer and sources from the result dictionary
+        print("\n--- Answer ---")
+        print(result.get("answer", "No answer generated."))
+
+        print("\n--- Sources ---")
+        print(result.get("sources", "No sources identified."))
+
+        # Optionally print snippets from the source documents returned
+        if "source_documents" in result:
+            print("\n--- Source Document Snippets ---")
+            for i, doc in enumerate(result["source_documents"]):
+                content_snippet = doc.page_content[:250].strip()
+                print(f"Doc {i+1}: {content_snippet}")
+
+    except Exception as e:
+        print(f"\nAn error occurred while running the chain: {e}")
+        # Consider adding more specific error handling if needed
+  #+end_src
+
+  #+RESULTS: debugretreiver
+  #+begin_example
+
+  --- Testing the Full RAG Chain ---
+  Query: What kind of food does Eleven Madison Park serve?
+
+
+  [1m> Entering new RetrievalQAWithSourcesChain chain...[0m
+
+  [1m> Finished chain.[0m
+
+  --- Answer ---
+   Eleven Madison Park serves a fully plant-based menu.
+
+
+  --- Sources ---
+  eleven_madison_park_data.txt
+
+  --- Source Document Snippets ---
+  Doc 1: Welcome to Eleven Madison Park Eleven Madison Park is a fine dining restaurant in the heart of New York City. Overlooking Madison Square Park–one of Manhattan’s most beautiful green spaces–we sit at the base of a historic Art Deco building on the cor
+  Doc 2: Source: https://www.elevenmadisonpark.com/ourrestaurant
+  Title: About — Eleven Madison Park
+  Content:
+  Doc 3: Source: https://www.elevenmadisonpark.com/faq
+  Title: FAQs — Eleven Madison Park
+  Content:
+  #+end_example
+
+* Creating a Gradio interface
+  Let's wrap our RAG chain in a user-friendly web interface using Gradio. Users
+  will type a question, click a button, and see the answer along with the
+  sources the AI used:
+  #+name: gradio
+  #+begin_src python :results none :exports both
+    # Gradio for UI
+    import gradio as gr
+
+    # --- Define the Function for Gradio ---
+
+    # This function takes the user's input, runs the chain, and formats the output
+    # Ensure the `qa_chain` variable is accessible in this scope.
+    def ask_elevenmadison_assistant(user_query):
+        """
+        Processes the user query using the RAG chain and returns formatted results.
+        """
+        print(f"\nProcessing Gradio query: '{user_query}'")
+        if not user_query or user_query.strip() == "":
+            print("--> Empty query received.")
+            return "Please enter a question.", ""  # Handle empty input gracefully
+
+        try:
+            # Run the query through our RAG chain
+            result = qa_chain.invoke({"question": user_query})
+
+            # Extract answer and sources
+            answer = result.get("answer", "Sorry, I couldn't find an answer in the provided documents.")
+            sources = result.get("sources", "No specific sources identified.")
+
+            # Basic formatting for sources (especially if it just returns the filename)
+            if sources == DATA_FILE_PATH:
+                sources = f"Retrieved from: {DATA_FILE_PATH}"
+            elif isinstance(sources, list):  # Handle potential list of sources
+                sources = ", ".join(list(set(sources)))  # Unique, comma-separated
+
+            print(f"--> Answer generated: {answer[:100].strip()}...")
+            print(f"--> Sources identified: {sources}")
+
+            # Return the answer and sources to be displayed in Gradio output components
+            return answer.strip(), sources
+
+        except Exception as e:
+            error_message = f"An error occurred: {e}"
+            print(f"--> Error during chain execution: {error_message}")
+            # Return error message to the user interface
+            return error_message, "Error occurred"
+
+
+    # --- Create the Gradio Interface using Blocks API ---
+    print("\nSetting up Gradio interface...")
+
+    with gr.Blocks(theme=gr.themes.Soft(), title="Eleven Madison Park Q&A Assistant") as demo:
+        # Title and description for the app
+        gr.Markdown(
+            """
+            # Eleven Madison Park - AI Q&A Assistant 💬
+            Ask questions about the restaurant based on its website data.
+            The AI provides answers and cites the source document.
+            ,*(Examples: What are the menu prices? Who is the chef? Is it plant-based?)*
+            """
+        )
+
+        # Input component for the user's question
+        question_input = gr.Textbox(
+            label = "Your Question:",
+            placeholder = "e.g., What are the opening hours on Saturday?",
+            lines = 2,  # Allow a bit more space for longer questions
+        )
+
+        # Row layout for the output components
+        with gr.Row():
+            # Output component for the generated answer (read-only)
+            answer_output = gr.Textbox(label="Answer:", interactive=False, lines=6)  # User cannot edit this
+            # Output component for the sources (read-only)
+            sources_output = gr.Textbox(label="Sources:", interactive=False, lines=2)
+
+        # Row for buttons
+        with gr.Row():
+            # Button to submit the question
+            submit_button = gr.Button("Ask Question", variant="primary")
+            # Clear button to reset inputs and outputs
+            clear_button = gr.ClearButton(components=[question_input, answer_output, sources_output], value="Clear All")
+
+        # Add some example questions for users to try
+        gr.Examples(
+            examples=[
+                "What are the different menu options and prices?",
+                "Who is the head chef?",
+                "What is Magic Farms?"],
+            inputs=question_input,  # Clicking example loads it into this input
+            # We could potentially add outputs=[answer_output, sources_output] and cache examples
+            # but that requires running the chain for each example beforehand.
+            cache_examples=False,  # Don't pre-compute results for examples for simplicity
+        )
+
+        # --- Connect the Submit Button to the Function ---
+        # When submit_button is clicked, call 'ask_emp_assistant'
+        # Pass the value from 'question_input' as input
+        # Put the returned values into 'answer_output' and 'sources_output' respectively
+        submit_button.click(fn = ask_elevenmadison_assistant, inputs = question_input, outputs = [answer_output, sources_output])
+
+    print("Gradio interface defined.")
+
+    # --- Launch the Gradio App ---
+    print("\nLaunching Gradio app... (Stop the kernel or press Ctrl+C in terminal to quit)")
+    # demo.launch() # Launch locally in the notebook or browser
+    demo.launch()
+  #+end_src
+
+* Summary
+  That concludes our project on using LangChain and RAG to build our Q&A AI
+  assistant. In this section we learned that:
+  - Retreival-Augemented Generation (RAG) was presented as a robust approach for
+    combining retrieval systems with generative language models to deliver
+    accurate, context-aware outputs.
+  - An end-to-end RAG pipeline was developed using LangChain for orchestration,
+    OpenAI for embeddings, and ChromaDB for efficient vector search.
+  - Key implementation techniques such as document preprocessing, embedding
+    generation, and vector storage were demonstrated following best practices.
+  - You can build powerful AI applications easily and quickly using an
+    interactive Gradio interface which was designed to showcase answers
+    alongside cited sources ensuring transparency & enhancing user trust.
