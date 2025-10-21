@@ -123,7 +123,6 @@ in a database. This technique is called Retrieval-Augmented Generation (RAG).
    #+name: setup
    #+begin_src python :results none :exports both
      # Let's install and import OpenAI Package
-     !pip install --upgrade openai
      from openai import OpenAI  
 
      # Let's import os, which stands for "Operating System"
@@ -149,14 +148,18 @@ in a database. This technique is called Retrieval-Augmented Generation (RAG).
      print(openai_api_key[:15])
    #+end_src
 
+   #+RESULTS: debugsetup
+   : OpenAI client successfully configured.
+   : sk-WOOzJ30J0lBF
+
    We should also import the LangChain libraries we need:
    #+name: langchainimport
    #+begin_src python :results none :exports both
      from langchain_openai import OpenAIEmbeddings, OpenAI
-     from langchain.vectorstores import Chroma
-     from langchain.text_splitter import RecursiveCharacterTextSplitter
-     from langchain.document_loaders import TextLoader
-     from langchain.chains import RetrievalQAWithSourcesChain 
+     from langchain_chroma import Chroma
+     from langchain_text_splitters import RecursiveCharacterTextSplitter
+     from langchain_community.document_loaders import TextLoader
+     from langchain_classic.chains import RetrievalQAWithSourcesChain
    #+end_src
 
    Then we can set our datafile:
@@ -167,6 +170,9 @@ in a database. This technique is called Retrieval-Augmented Generation (RAG).
      DATA_FILE_PATH = "eleven_madison_park_data.txt"
      print(f"Data file path set to: {DATA_FILE_PATH}")
    #+end_src
+
+   #+RESULTS: datafile
+   : Data file path set to: eleven_madison_park_data.txt
 
    Let's load our datafile:
    #+name: loaddatafile
@@ -184,6 +190,10 @@ in a database. This technique is called Retrieval-Augmented Generation (RAG).
      print(f"Successfully loaded {len(raw_documents)} document(s).")
    #+end_src
 
+   #+RESULTS: loaddatafile
+   : Attempting to load data from: eleven_madison_park_data.txt
+   : Successfully loaded 1 document(s).
+
    To confirm we loaded everything properly let's print a few characters from
    our datafile:
    #+name: debugdatafile
@@ -191,6 +201,20 @@ in a database. This technique is called Retrieval-Augmented Generation (RAG).
      # Let's display a few characters of the loaded content to perform a sanity check!
      print(raw_documents[0].page_content[:500] + "...")
    #+end_src
+
+   #+RESULTS: debugdatafile
+   #+begin_example
+   Source: https://www.elevenmadisonpark.com/
+   Title: Eleven Madison Park
+   Content:
+   Book on Resy
+   ---END OF SOURCE---
+
+   Source: https://www.elevenmadisonpark.com/careers
+   Title: Careers — Eleven Madison Park
+   Content:
+   Join Our Team Eleven Madison Park ▾ All Businesses Eleven Madison Park Clemente Bar Daniel Humm Hospitality Filter Categories Culinary Pastry Wine & Beverage Dining Room Office & Admin Other Job Types Full Time Part Time Compensation Salary Hourly Apply filters OPEN OPPORTUNITIES Staff Acco...
+   #+end_example
 
 * Splitting documents
   Large documents are hard for AI models to process efficiently and make it
@@ -221,6 +245,11 @@ in a database. This technique is called Retrieval-Augmented Generation (RAG).
     print(f"Document split into {len(documents)} chunks.")
   #+end_src
 
+  #+RESULTS: splitdocument
+  : 
+  : Splitting the loaded document into smaller chunks...
+  : Document split into 38 chunks.
+
   We should now be able to print a sample chunk of our document:
   #+name: debugsplitdocument
   #+begin_src python :results output :exports both :tangle no
@@ -231,9 +260,139 @@ in a database. This technique is called Retrieval-Augmented Generation (RAG).
     print(documents[2].metadata) # Should show {'source': 'eleven_madison_park_data.txt'}
   #+end_src
 
+  #+RESULTS: debugsplitdocument
+  : 
+  : --- Example Chunk (Chunk 2) ---
+  : Join Our Team Eleven Madison Park ▾ All Businesses Eleven Madison Park Clemente Bar Daniel Humm Hospitality Filter Categories Culinary Pastry Wine & Beverage Dining Room Office & Admin Other Job Types Full Time Part Time Compensation Salary Hourly Apply filters OPEN OPPORTUNITIES Staff Accountant - Part Time Eleven Madison Park Part Time • Hourly ($20 - $25) Host/Reservationist Eleven Madison Park Full Time • Hourly ($24) Sous Chef Eleven Madison Park Full Time • Salary ($72K - $75K) Pastry Cook Eleven Madison Park Full Time • Hourly ($18 - $20) Kitchen Server Eleven Madison Park Full Time • Hourly ($16) plus tips Dining Room Manager Eleven Madison Park Full Time • Salary ($72K - $75K) Porter Manager Eleven Madison Park Full Time • Salary ($70K - $75K) Senior Sous Chef Eleven Madison Park Full Time • Salary ($85K - $95K) Maitre D Eleven Madison Park Full Time • Hourly ($16) plus tips Even if you don't see the opportunity you're looking for, we would still love to hear from you. There
+  : 
+  : --- Metadata for Chunk 2 ---
+  : {'source': 'eleven_madison_park_data.txt'}
+
 * Embeddings and vector store creation
-  Now, we convert our text chunks into *embeddings* (numerical vectors) using
-  OpenAI. Similar text chunks will have similar vectors. We then store these
-  vectors in a *vector store* (ChromaDB) for fast searching.
-  - *Embeddings*: Text -> Numbers (Vectors) representing meaning.
-  - *Vector Store*: Database optimized for searching these vectors.
+  In the context of Large Language Models (LLMs), embedding refers to a way of
+  representing words, phrases, sentences, and documents as dense vectors of
+  numbers. These vectors capture the semantic meaning of the text, allowing the
+  model to understand and work with language more effectively.
+  Example:
+  #+begin_example
+    Input Text: "Queen"
+    (Run through embedding model)
+    Vector Embedding: "[9, 7, 8]"
+  #+end_example
+
+  Let's go over an example to really explain this idea more throughly. Assume
+  that we want to represent the words "man", "woman", "boy", and "girl" on a
+  *semantic feature space*. On the X-axis we have "gender", and on the Y-axis,
+  we have "Age". These are called *semantic features*. Note that two words refer
+  to males, two to females, two to adults, and two to children.
+
+  We might end up with something like this:
+  | Word        | Gender | Age |
+  |-------------+--------+-----|
+  | man         |      1 |   7 |
+  | woman       |      9 |   7 |
+  | boy         |      1 |   2 |
+  | girl        |      9 |   2 |
+  | grandfather |      1 |   9 |
+  | grandmother |      9 |   9 |
+  | child       |      5 |   2 |
+
+** Embeddings in a 3d space!
+   Let's now look at the words "king", "queen", "prince", and "princess". While
+   these words share similar gender and age attributes with "man", "woman",
+   "boy", and "girl", they have different meanings. To distinguish "man" from
+   "king", "woman" from "queen", we need to introduce a new semantic feature
+   that sets them apart. We'll call this feature "Royalty".
+
+   With a third dimension we might end up with something like this:
+   | Word        | Gender | Age | Royalty |
+   |-------------+--------+-----+---------|
+   | man         |      1 |   7 |       1 |
+   | woman       |      9 |   7 |       1 |
+   | boy         |      1 |   2 |       1 |
+   | girl        |      9 |   2 |       1 |
+   | grandfather |      1 |   9 |       1 |
+   | grandmother |      9 |   9 |       1 |
+   | child       |      5 |   2 |       5 |
+   | king        |      1 |   8 |       8 |
+   | queen       |      9 |   7 |       8 |
+   | prince      |      1 |   2 |       8 |
+   | princess    |      9 |   2 |       8 |
+
+   Now, we convert our text chunks into *embeddings* (numerical vectors) using
+   OpenAI. Similar text chunks will have similar vectors. We then store these
+   vectors in a *vector store* (ChromaDB) for fast searching.
+   - *Embeddings*: Text -> Numbers (Vectors) representing meaning.
+   - *Vector Store*: Database optimized for searching these vectors.
+
+   Also check out the [[https://projector.tensorflow.org/][Tensorflow Ebeddings projector (it's fun!)]].
+
+   Let's initialize our embeddings:
+   #+name: initembeddings
+   #+begin_src python :results output :exports both
+     # Let's initialize our embeddings model. Note that we will use OpenAI's embedding model 
+     print("Initializing OpenAI Embeddings model...")
+
+     # Create an instance of the OpenAI Embeddings model
+     # Langchain handles using the API key we loaded earlier
+     embeddings = OpenAIEmbeddings(openai_api_key = openai_api_key)
+
+     print("OpenAI Embeddings model initialized.")
+
+     # Let's Create ChromaDB Vector Store
+     print("\nCreating ChromaDB vector store and embedding documents...")
+
+     # Now the chunks from 'documents' are being converted to a vector using the 'embeddings' model
+     # The vectors are then stored as a vector in ChromaDB
+     # You could add `persist_directory="./my_chroma_db"` to save it to disk
+     # You will need to specify: (1) The list of chunked Document objects and (2) The embedding model to use
+     vector_store = Chroma.from_documents(documents = documents, embedding = embeddings)  
+
+     # Verify the number of items in the store
+     vector_count = vector_store._collection.count()
+     print(f"ChromaDB vector store created with {vector_count} items.")
+
+     if vector_count == 0:
+         raise ValueError("Vector store creation resulted in 0 items. Check previous steps.")
+   #+end_src
+
+   #+RESULTS: initembeddings
+   : Initializing OpenAI Embeddings model...
+   : OpenAI Embeddings model initialized.
+   : 
+   : Creating ChromaDB vector store and embedding documents...
+   : ChromaDB vector store created with 38 items.
+
+   To debug and make sure we got everything right we can print a chunk of our
+   stored data:
+   #+name: debugvectorestore
+   #+begin_src python :results output :exports both :tangle no
+     # Let's retrieve the first chunk of stored data from the vector store
+     stored_data = vector_store._collection.get(include=["embeddings", "documents"], limit = 1)
+
+     # Display the results
+     print("First chunk text:\n", stored_data['documents'][0])
+     print("\nEmbedding vector:\n", stored_data['embeddings'][0])
+     print(f"\nFull embedding has {len(stored_data['embeddings'][0])} dimensions.")
+   #+end_src
+
+   We get:
+   #+RESULTS: debugvectorestore
+   #+begin_example
+   First chunk text:
+    Source: https://www.elevenmadisonpark.com/
+   Title: Eleven Madison Park
+   Content:
+   Book on Resy
+   ---END OF SOURCE---
+
+   Embedding vector:
+    [ 0.02318246 -0.01573779 -0.00694174 ... -0.02468781 -0.01027062
+    -0.06141846]
+
+   Full embedding has 1536 dimensions.
+   #+end_example
+
+   We can see in this output that the first chunk is the human readable text
+   that we understand. The second block of output is the embedding vector that
+   the AI model sees and works with.

@@ -2,7 +2,6 @@
 # This file was generated from the README.org found in this directory
 
 # Let's install and import OpenAI Package
-!pip install --upgrade openai
 from openai import OpenAI  
 
 # Let's import os, which stands for "Operating System"
@@ -19,10 +18,10 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 openai_client = OpenAI(api_key=openai_api_key)
 
 from langchain_openai import OpenAIEmbeddings, OpenAI
-from langchain.vectorstores import Chroma
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.document_loaders import TextLoader
-from langchain.chains import RetrievalQAWithSourcesChain
+from langchain_chroma import Chroma
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import TextLoader
+from langchain_classic.chains import RetrievalQAWithSourcesChain
 
 # Define the path to your data file
 # Ensure 'eleven_madison_park_data.txt' is in the same folder as this notebook
@@ -56,3 +55,28 @@ documents = text_splitter.split_documents(raw_documents)
 if not documents:
     raise ValueError("Error: Splitting resulted in zero documents. Check the input file and splitter settings.")
 print(f"Document split into {len(documents)} chunks.")
+
+# Let's initialize our embeddings model. Note that we will use OpenAI's embedding model 
+print("Initializing OpenAI Embeddings model...")
+
+# Create an instance of the OpenAI Embeddings model
+# Langchain handles using the API key we loaded earlier
+embeddings = OpenAIEmbeddings(openai_api_key = openai_api_key)
+
+print("OpenAI Embeddings model initialized.")
+
+# Let's Create ChromaDB Vector Store
+print("\nCreating ChromaDB vector store and embedding documents...")
+
+# Now the chunks from 'documents' are being converted to a vector using the 'embeddings' model
+# The vectors are then stored as a vector in ChromaDB
+# You could add `persist_directory="./my_chroma_db"` to save it to disk
+# You will need to specify: (1) The list of chunked Document objects and (2) The embedding model to use
+vector_store = Chroma.from_documents(documents = documents, embedding = embeddings)  
+
+# Verify the number of items in the store
+vector_count = vector_store._collection.count()
+print(f"ChromaDB vector store created with {vector_count} items.")
+
+if vector_count == 0:
+    raise ValueError("Vector store creation resulted in 0 items. Check previous steps.")
