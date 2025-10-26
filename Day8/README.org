@@ -1,0 +1,403 @@
+#+TITLE: Day 8
+#+PROPERTY: header-args:python :session day8
+#+PROPERTY: header-args:python+ :tangle main.py
+#+PROPERTY: header-args:python+ :results value
+#+PROPERTY: header-args:python+ :shebang "#!/usr/bin/env python"
+
+In our previous project, we used LangChain and learned about the RAG to
+implement a Q&A AI assistant that pulled data from a vertex database we
+populated. Now we are going to be building a resume and cover letter helper
+using Pydantic
+
+#+BEGIN_SRC elisp :exports none :results none
+  (setq org-babel-python-command (concat
+                                  (file-name-directory (or load-file-name (buffer-file-name)))
+                                  ".venv/bin/python"))
+#+END_SRC
+
+#+begin_src python :exports none :results none
+  # This file was generated from the README.org found in this directory
+#+end_src
+
+In this section we are going to learn a super powerful library called Pydantic
+that allows us to perform output validation.
+
+* Project overview
+  In this project, we'll build a "Resume AI Assistant" which uses the power of
+  LLMs like OpenAI's ChatGPT, Google's Gemini, and Pydantic to help job seekers
+  tailor their resumes and generate custom cover letters for specific job
+  applications.
+
+  Example:
+  - *Input*:
+    - Old Resume
+    - Target Job Description
+  - *Output*:
+    - Gaps/Mismatch between resume & job Description
+    - Potential strengths
+    - Match % Score
+    - New Resume with gaps addressed
+    - New tailored cover letter
+
+* Key learning outcomes
+  This section will have us:
+  - Build a powerful AI resume editor that can identify gaps between resume and
+    the job description and tailor the resume and cover letter.
+  - Master Pydantic library for output validation.
+  - Learn how to generate parsed structured output from OpenAI with Pydantic.
+  - Learn how to develop a text change tracker using OpenAI.
+
+* Use case for Pydantic library
+  Pydantic is a Python library used to validate and parse data using Python type
+  hints. It ensures that the data you get is clean, well-structured, and follows
+  the rules you set.
+
+  How it works:
+  - You define a data structure using a class.
+  - Pydantic ensures the data is correct (types, required fields, etc.).
+  - It even converts data automatically if possible (e.g., turns strings into
+    numbers or dates).
+
+  To begin we will import the Pydantic library:
+  #+name: pydanticimport
+  #+begin_src python :results none :exports both
+    # Let's install and import Pydantic
+    # In Pydantic, BaseModel is the core class that you use to create data models.
+    # BaseModel is like a blueprint for structured data. It defines the fields, their types, and automatically gives you data validation and type conversion capabilities
+    from pydantic import BaseModel
+  #+end_src
+
+  To begin with Pydantic we can simple define a class we will be using to
+  validate our data:
+  #+name: userclass
+  #+begin_src python :results none :exports both
+    # Let's create a new class named "User"
+    # BaseModel is a special class from Pydantic that performs validation and parsing
+    # Inside the class, we will declare name, age, and email along with their expected data types using Python type hints
+    # Pydantic's role is to validate that name is a str, age is an int, and so on.
+    # If you pass something wrong (like a string instead of a number), Pydantic raises an error.
+
+    class User(BaseModel):
+        name: str
+        age: int
+        email: str
+  #+end_src
+
+  Now let's test it out with a valid input:
+  #+name: debuguserclass
+  #+begin_src python :results output :exports both :tangle no
+    # Let's test it out with a valid (correct) input 
+    try:
+        user = User(name = "Mira", age = 30, email = "mira@gmail.com")
+        print(user.model_dump_json())
+
+    except Exception as e:
+        print(e)
+  #+end_src
+
+  We can see that we successfully get:
+  #+RESULTS: debuguserclass
+  : {"name":"Mira","age":30,"email":"mira@gmail.com"}
+
+  Now let's test it out with a invalid input:
+  #+name: debuguserclass2
+  #+begin_src python :results output :exports both :tangle no
+    # Let's test it out with an invalid input 
+    try:
+        user = User(name = "Mira", age = "not-a-number", email = "mira@gmail.com")
+        print(user.model_dump_json())
+
+    except Exception as e:
+        print(e)
+  #+end_src
+
+  Here we can see we caught an error:
+  #+RESULTS: debuguserclass2
+  : 1 validation error for User
+  : age
+  :   Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='not-a-number', input_type=str]
+  :     For further information visit https://errors.pydantic.dev/2.12/v/int_parsing
+
+* Generate parsed structured output
+  Now we will attempt to generate parsed structured output from OpenAI with
+  Pydantic. To begin we will load our API Keys similar to how we have done
+  before:
+  #+name: loadapikeys
+  #+begin_src python :results output :exports both
+    # Import necessary libraries
+    import os
+    import google.generativeai as genai
+    from openai import OpenAI  # Make sure you have the latest openai package (pip install --upgrade openai)
+    from dotenv import load_dotenv
+    import json
+
+    # Importing type hints that help describe what kind of data your Python functions or classes expect or return.
+    # List: A list of elements, all usually of the same type.
+    # Example: List[int] means a list of integers like [1, 2, 3].
+
+    # Dict: A dictionary (key-value pairs).
+    # Example: Dict[str, int] means keys are strings and values are integers like {'a': 1, 'b': 2}.
+
+    # Union: Either one type or another.
+    # Example: Union[int, str] means the value can be an int or a str.
+
+    # Optional: Means a value can be the type you expect or None.
+    # Example: Optional[int] is the same as Union[int, None].
+
+    # Any: Anything at all — no restriction on type.
+    # You can pass an int, string, list, object, etc.
+    from typing import List, Dict, Union, Optional, Any
+    from IPython.display import display, Markdown
+
+    print("Libraries imported successfully!")
+
+    # Load environment variables from the .env file
+    load_dotenv()
+
+    # Fetch API keys from environment variables
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    google_api_key = os.getenv("GOOGLE_API_KEY")
+
+    # Configure the APIs
+    openai_client = OpenAI(api_key = openai_api_key)
+    genai.configure(api_key = google_api_key)
+
+    # Initialize the Gemini model, choose a suitable model like "gemini-2.0-flash"
+    gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+  #+end_src
+
+  #+RESULTS: loadapikeys
+  : Libraries imported successfully!
+
+  Now let's define a new class we will be using:
+  #+name: scientistclass
+  #+begin_src python :results none :exports both
+    # Let's define a Pydantic model called scientist that describes what a valid response should look like
+    class scientist(BaseModel):
+      name: str
+      field: str
+      known_for: list[str]
+      birth_year: int
+  #+end_src
+
+  Now we can define our prompt we will use:
+  #+name: prompt
+  #+begin_src python :results none :exports both
+    # Let's define a prompt
+    prompt = """
+    Give me a JSON object with details about a famous scientist.
+    Include the following fields: name, field, known_for, and birth_year.
+    """
+  #+end_src
+
+  Now let's test our prompt:
+  #+name: debugprompt
+  #+begin_src python :results output :exports both :tangle no
+    # Let's make the API call to OpenAI
+    # Note that we used "openai_client.beta.chat.completions.parse( )" since we want to parse it into a structured output instead of just plain text 
+    response = openai_client.beta.chat.completions.parse(model = "gpt-4o",
+                                                     messages = [{"role": "user", 
+                                                     "content": prompt}],
+        temperature = 0,
+        response_format = scientist,  # This tells OpenAI to return a parsed `scientist` object that's defined by Pydantic
+        max_tokens = 300)
+
+    # Print the parsed response
+    print(response.choices[0].message.content)
+
+    # Use json.loads() to turn the Json into a Python dictionary
+    print(json.loads(response.choices[0].message.content))
+  #+end_src
+
+  This gives us:
+  #+RESULTS: debugprompt
+  : {"name":"Albert Einstein","field":"Theoretical Physics","known_for":["Theory of Relativity","Photoelectric Effect","Mass-Energy Equivalence (E=mc²)","Brownian Motion"],"birth_year":1879}
+  : {'name': 'Albert Einstein', 'field': 'Theoretical Physics', 'known_for': ['Theory of Relativity', 'Photoelectric Effect', 'Mass-Energy Equivalence (E=mc²)', 'Brownian Motion'], 'birth_year': 1879}
+
+* Define the inputs
+  Next we will define the LLM inputs including the resume and target job
+  description.
+
+  Now that we covered the basics of Pydantic, let's start with our project! We
+  need to get the user's resume and the target job description. We'll start by
+  defining these as multi-line strings in Python. Later in the course, we will
+  adopt this to take user input or read from files.
+
+  How can we make it this far without our glorious print function:
+  #+name: printmarkdown
+  #+begin_src python :results none :exports both
+    # Helper function to display markdown nicely 
+    def print_markdown(text):
+        """Displays text as Markdown."""
+        display(Markdown(text))
+  #+end_src
+
+  For testing later we will want a sample resume so let's just define that now:
+  #+name: sampleresume
+  #+begin_src python :results none :exports both
+    # Let's define a sample resume text
+    resume_text = """
+    ,**Jessica Brown**  
+    jessica.brown@email.com | (416) 555-7890 | linkedin.com/in/jessicabrown
+
+    ,**Summary**  
+    Marketing professsional with 2 years of experience assisting in digital campaigns, content creation, and social media activities. Comfortable handling multiple tasks and providing general marketing support.
+
+    ,**Experience**
+
+    ,**Marketing Asssistant | Brewster Coffee Co. | Toronto, ON | Jan 2022 – Present**
+    - Assisted with digital marketing campaigns including email and social media.
+    - Created blog posts and social media updates to improve audience engagement.
+    - Managed social media accounts and grew follower numbers.
+    - Supported coordination of marketing events.
+    - Conducted market research and competitor analysis.
+
+    ,**Skils**
+    - Digital Marketing (SEO basics, Email Marketing)
+    - Social Media Tools (Hootsuite, Buffer)
+    - Microsoft Office Suite, Google Workspace
+    - Basic knowledge of Adobe Photoshop
+
+    ,**Education**  
+    ,**Bachelor of Commerce, Marketing** | Ryerson University (now Toronto Metropolitan University), Toronto, ON | May 2021
+    """
+  #+end_src
+
+  Similarly we will need a sample job description:
+  #+name: samplejobdescription
+  #+begin_src python :results none :exports both
+    # Let's define a sample job description text
+    job_description_text = """
+    # Job Title: Digital Marketing Specialist
+
+    ,**Company:** BrightWave Digital Agency
+
+    ,**Location:** Toronto, ON
+
+    ## About Us:
+    BrightWave Digital Agency creates digital marketing campaigns for a variety of clients. We are looking for a Digital Marketing Specialist to join our team and assist in managing campaigns.
+
+    ## Responsibilities:
+    - Assist in planning and executing digital marketing campaigns (SEO, SEM, social media, email).
+    - Use Google Analytics to measure performance and prepare basic performance reports.
+    - Support social media management tasks including content scheduling and community engagement.
+    - Perform keyword research and assist in optimizing content for SEO.
+    - Work with designers to help coordinate campaign materials.
+    - Keep informed about current digital marketing trends.
+
+    ## Qualifications:
+    - Bachelor's degree in Marketing, Communications, or similar.
+    - 2+ years of digital marketing experience.
+    - Familiarity with SEO, SEM, Google Analytics, and social media.
+    - Ability to interpret basic marketing data.
+    - Good communication and writing skills.
+    - Knowledge of CRM systems (e.g., HubSpot) helpful.
+    - Experience with Adobe Creative Suite is beneficial.
+    """
+  #+end_src
+
+* Enhance the resume with OpenAI
+  Now that we have our test resume and test job description, let's use the
+  OpenAI API to improve the resume to better match the job requirements. We'll
+  make a call to the text generation API and ask it to enhance our resume.
+
+  To begin we will define a function to have OpenAI generate content for us:
+  #+name: funcopenaigenerate
+  #+begin_src python :results none :exports both
+    def openai_generate(prompt: str,
+                        model: str = "gpt-4o",
+                        temperature: float = 0.7,
+                        max_tokens: int = 1500,
+                        response_format: Optional[dict] = None) -> str | dict:
+        """
+        Generate text using OpenAI API
+
+        This function sends a prompt to OpenAI's API and returns the generated response.
+        It supports both standard text generation and structured parsing with response_format.
+
+        Args:
+            prompt (str): The prompt to send to the model, i.e.: your instructions for the AI
+            model (str): The OpenAI model to use (default: "gpt-4o")
+            temperature (float): Controls randomness, where lower values make output more deterministic
+            max_tokens (int): Maximum number of tokens to generate, which limits the response length
+            response_format (dict): Optional format specification
+            In simple terms, response_format is optional. If the user gives me a dictionary, cool! 
+            If they don't give me anything, just assume it's None and keep going."
+
+        Returns:
+            str or dict: The generated text or parsed structured data, depending on response_format
+        """
+
+        
+        try:
+            # Standard text generation without a specific response format
+            if not response_format:
+                response = openai_client.chat.completions.create(
+                    model = model,
+                    messages = [
+                        {"role": "system",
+                         "content": "You are a helpful assistant specializing in resume writing and career advice.",
+                        },
+                        {"role": "user", "content": prompt}],
+                    temperature = temperature,
+                    max_tokens = max_tokens)
+                
+                # Extract just the text content from the response
+                return response.choices[0].message.content
+            
+            # Structured response generation (e.g., JSON format)
+            else:
+                completion = openai_client.beta.chat.completions.parse(
+                    model = model,  # Make sure to use a model that supports parse
+                    messages = [
+                        # Same system and user messages as above
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant specializing in resume writing and career advice.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature = temperature,
+                    response_format = response_format)
+
+                # Return the parsed structured output
+                return completion.choices[0].message.parsed
+                
+        except Exception as e:
+            # Error handling to prevent crashes
+            return f"Error generating text: {e}"
+  #+end_src
+
+  Now we can define our prompt to give to our function:
+  #+name: resumeprompt
+  #+begin_src python :results none :exports both
+    prompt = f"""
+    Context:
+    You are a professional resume writer helping a candidate tailor their resume for a specific job opportunity. The resume and job description are provided below.
+
+    Instruction:
+    Enhance the resume to make it more impactful. Focus on:
+    - Highlighting relevant skills and achievements.
+    - Using strong action verbs and quantifiable results where possible.
+    - Rewriting vague or generic bullet points to be specific and results-driven.
+    - Emphasizing experience and skills most relevant to the job description.
+    - Reorganizing sections if necessary to better match the job requirements.
+
+    Resume:
+    {resume_text}
+
+    Output:
+    Provide a revised and improved version of the resume that is well-formatted. Only return the updated resume.
+    """
+  #+end_src
+
+  Now we can test everything:
+  #+name: debugopenai
+  #+begin_src python :results output :exports both
+    # Get response from OpenAI API
+    openai_output = openai_generate(prompt, temperature = 0.7)
+
+    # Display the results
+    print("#### OpenAI Response:")
+    print(openai_output)
+  #+end_src
