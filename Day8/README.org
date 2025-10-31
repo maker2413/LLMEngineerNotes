@@ -393,7 +393,7 @@ that allows us to perform output validation.
 
   Now we can test everything:
   #+name: debugopenai
-  #+begin_src python :results output :exports both
+  #+begin_src python :results output :exports both :tangle no
     # Get response from OpenAI API
     openai_output = openai_generate(prompt, temperature = 0.7)
 
@@ -401,3 +401,769 @@ that allows us to perform output validation.
     print("#### OpenAI Response:")
     print(openai_output)
   #+end_src
+
+  This gives us:
+  #+RESULTS: debugopenai
+  #+begin_example
+  #### OpenAI Response:
+  ,**Jessica Brown**  
+  jessica.brown@email.com | (416) 555-7890 | linkedin.com/in/jessicabrown
+
+  ---
+
+  ,**Summary**  
+  Results-driven marketing professional with over 2 years of experience in digital marketing, content creation, and social media management. Proven track record in enhancing brand visibility and driving audience engagement through strategic digital campaigns. Adept at multitasking and delivering comprehensive marketing support.
+
+  ---
+
+  ,**Professional Experience**
+
+  ,**Marketing Assistant | Brewster Coffee Co. | Toronto, ON**  
+  ,*Jan 2022 – Present*
+
+  - Spearheaded digital marketing initiatives, increasing email campaign open rates by 25% and social media engagement by 30%.
+  - Developed and executed content strategy, authoring over 50 blog posts and social media updates that boosted audience engagement by 40%.
+  - Managed and optimized social media platforms, leading to a 20% growth in follower base within a year.
+  - Coordinated successful marketing events, contributing to a 15% increase in event attendance.
+  - Conducted in-depth market research and competitor analysis, providing actionable insights that informed strategic marketing decisions.
+
+  ---
+
+  ,**Skills**
+
+  - **Digital Marketing**: SEO, Email Marketing, Content Strategy
+  - **Social Media Management**: Expert in Hootsuite, Buffer
+  - **Technical Proficiency**: Microsoft Office Suite, Google Workspace, Basic Adobe Photoshop
+
+  ---
+
+  ,**Education**  
+
+  ,**Bachelor of Commerce, Marketing**  
+  Ryerson University (now Toronto Metropolitan University), Toronto, ON  
+  ,*Graduated May 2021*  
+
+  ---
+  #+end_example
+
+* Gap analysis
+  Now, let's use an LLM to analyze the resume and job description. We want the
+  AI to identify:
+  1. Key skills/requirements mentioned in the Job Description.
+  2. Relevant skills/experience present in the Resume.
+  3. Crucially, the mismatches or gaps – what the job asks for that the resume
+     doesn't highlight well.
+
+  We'll use OpenAI for this analysis step. We need to craft a clear
+  prompt. Let's build a function that we can later call to build our prompts:
+  #+name: analysisprompt
+  #+begin_src python :results none :exports both
+    # Prompt to analyze the resume against the job description
+
+    def analyze_resume_against_job_description(job_description_text: str, resume_text: str, model: str = "openai") -> str:
+        """
+        Analyze the resume against the job description and return a structured comparison.
+
+        Args:
+            job_description_text (str): The job description text.
+            resume_text (str): The candidate's resume text.
+            model (str): The model to use for analysis ("openai" or "gemini").
+
+        Returns:
+            str: A clear, structured comparison of the resume and job description.
+        """
+        # This prompt instructs the AI to act as a career advisor and analyze how well the resume matches the job description
+        # It asks for a structured analysis with 4 specific sections: requirements, matches, gaps, and strengths
+        prompt = f"""
+        Context:
+        You are a career advisor and resume expert. Your task is to analyze a candidate's resume against a specific job description to assess alignment and identify areas for improvement.
+
+        Instruction:
+        Review the provided Job Description and Resume. Identify key skills, experiences, and qualifications in the Job Description and compare them to what's present in the Resume. Provide a structured analysis with the following sections:
+        1. **Key Requirements from Job Description:** List the main skills, experiences, and qualifications sought by the employer.
+        2. **Relevant Experience in Resume:** List the skills and experiences from the resume that match or align closely with the job requirements.
+        3. **Gaps/Mismatches:** Identify important skills or qualifications from the Job Description that are missing, unclear, or underrepresented in the Resume.
+        4. **Potential Strengths:** Highlight any valuable skills, experiences, or accomplishments in the resume that are not explicitly requested in the job description but could strengthen the application.
+
+        Job Description:
+
+        {job_description_text}
+
+        Resume:
+
+        {resume_text}
+
+        Output:
+        Return a clear, structured comparison with the four sections outlined above.
+        """
+
+        # This conditional block selects which AI model to use based on the 'model' parameter
+        if model == "openai":
+            # Uses OpenAI's model to generate the gap analysis with moderate creativity (temperature=0.7)
+            gap_analysis = openai_generate(prompt, temperature=0.7)
+        elif model == "gemini":
+            # Uses Google's Gemini model with less creativity (temperature=0.5) for more focused results
+            gap_analysis = gemini_generate(prompt, temperature=0.5)
+        else:
+            # Raises an error if an invalid model name is provided
+            raise ValueError(f"Invalid model: {model}")
+
+        # Returns the generated gap analysis text
+        return gap_analysis
+  #+end_src
+
+  Now we can test our new prompt function:
+  #+name: debuganalysisprompt
+  #+begin_src python :results output :exports both :tangle no
+    # Call the function to analyze the resume against the job description using OpenAI
+    gap_analysis_openai = analyze_resume_against_job_description(job_description_text, 
+                                                                 resume_text, 
+                                                                 model = "openai")
+
+    # Displays the analysis results in Markdown format
+    print("#### OpenAI Response:")
+    print(gap_analysis_openai)
+  #+end_src
+
+  This gives us:
+  #+RESULTS: debuganalysisprompt
+  #+begin_example
+  #### OpenAI Response:
+  ,**1. Key Requirements from Job Description:**
+
+  - **Education:** Bachelor's degree in Marketing, Communications, or a similar field.
+  - **Experience:** 2+ years of digital marketing experience.
+  - **Technical Skills:**
+    - Familiarity with SEO, SEM, Google Analytics, and social media.
+    - Ability to interpret basic marketing data.
+    - Knowledge of CRM systems (e.g., HubSpot) is helpful.
+    - Experience with Adobe Creative Suite is beneficial.
+  - **Responsibilities:**
+    - Assist in planning and executing digital marketing campaigns (SEO, SEM, social media, email).
+    - Use Google Analytics to measure performance and prepare basic performance reports.
+    - Support social media management tasks including content scheduling and community engagement.
+    - Perform keyword research and assist in optimizing content for SEO.
+    - Work with designers to help coordinate campaign materials.
+    - Stay informed about current digital marketing trends.
+  - **Soft Skills:** Good communication and writing skills.
+
+  ,**2. Relevant Experience in Resume:**
+
+  - **Education:** Bachelor of Commerce in Marketing from Ryerson University.
+  - **Experience:** 2 years of experience as a Marketing Assistant at Brewster Coffee Co.
+  - **Technical Skills:**
+    - Involved in digital marketing campaigns, particularly with email and social media.
+    - Managed social media accounts and created content, which aligns with social media management tasks.
+    - Conducted market research, which contributes to understanding marketing data.
+    - Basic knowledge of Adobe Photoshop.
+  - **Responsibilities:**
+    - Assisted with digital marketing campaigns (email and social media).
+    - Created blog posts and social media updates to enhance audience engagement.
+    - Managed social media accounts effectively.
+
+  ,**3. Gaps/Mismatches:**
+
+  - **SEO and SEM Experience:** The resume mentions "SEO basics," but there is no explicit mention of SEM experience or detailed SEO tasks (e.g., keyword research, content optimization).
+  - **Google Analytics:** There is no mention of experience with Google Analytics or preparing performance reports.
+  - **CRM Systems:** No mention of familiarity with CRM systems like HubSpot.
+  - **Adobe Creative Suite:** While there is basic knowledge of Adobe Photoshop, broader experience with the entire Adobe Creative Suite is not highlighted.
+  - **Campaign Coordination:** The resume does not explicitly mention working with designers or coordinating campaign materials.
+  - **Digital Marketing Trends:** There is no mention of staying informed about current digital marketing trends.
+
+  ,**4. Potential Strengths:**
+
+  - **Content Creation:** Strong experience in creating engaging blog posts and social media updates, which could be valuable for social media management and content scheduling.
+  - **Social Media Growth:** Experience growing social media follower numbers, illustrating results-oriented skills.
+  - **Event Coordination:** Experience supporting marketing events, which can demonstrate strong organizational and coordination skills.
+  - **Technical Tools:** Familiarity with social media tools like Hootsuite and Buffer, which are valuable for social media management tasks.
+  - **Market Research:** Conducting market research and competitor analysis can contribute to strategic insights in digital marketing campaigns.
+  #+end_example
+
+* Change tracking with Pydantic
+  Now, we'll use the insights gained (analysis and suggestions) to generate a
+  completely rewritten, tailored resume using OpenAI. A key enhancement here is
+  to ask the AI not just to list the changes, but to try and identify which
+  sections or areas of the resume were modified. This helps the user quickly see
+  the impact of the tailoring.
+
+  We'll ask the AI for two outputs:
+  1. The full text of the tailored resume.
+  2. A structured list (using Markdown) describing the key changes and where
+     they were made (e.g., Summary, Experience section, Skills).
+
+  #+name: pydantic
+  #+begin_src python :results none :exports both
+    # Define Pydantic models for structured output
+    # The ResumeOutput class is a Pydantic model that defines the structure of the output
+    # for the resume generation function. It includes two fields:
+    # (1) updated_resume: A string that contains the final rewritten resume.
+    # (2) diff_markdown: A string containing the resume's HTML-coloured version highlighting additions and deletions.
+
+    class ResumeOutput(BaseModel):
+        updated_resume: str
+        diff_markdown: str
+
+
+    def generate_resume(
+        job_description_text: str, resume_text: str, gap_analysis_openai: str, model: str = "openai") -> dict:
+        """
+        Generate a tailored resume using OpenAI or Gemini.
+
+        Args:
+            job_description_text (str): The job description text.
+            resume_text (str): The candidate's resume text.
+            gap_analysis_openai (str): The gap analysis result from OpenAI.
+            model (str): The model to use for resume generation.
+
+        Returns:
+            dict: A dictionary containing the updated resume and diff markdown.
+        """
+        # Construct the prompt for the AI model to generate the tailored resume.
+        # The prompt includes context, instructions, and input data (original resume,
+        # target job description, and gap analysis).
+        prompt = (
+            """
+        ### Context:
+        You are an expert resume writer and editor. Your goal is to rewrite the original resume to match the target job description, using the provided tailoring suggestions and analysis.
+
+        ---
+
+        ### Instruction:
+        1. Rewrite the entire resume to best match the **Target Job Description** and **Gap Analysis to the Job Description**.
+        2. Improve clarity, add job-relevant keywords, and quantify achievements.
+        3. Specifically address the gaps identified in the analysis by:
+           - Adding missing skills and technologies mentioned in the job description
+           - Reframing experience to highlight relevant accomplishments
+           - Strengthening sections that were identified as weak in the analysis
+        4. Prioritize addressing the most critical gaps first
+        5. Incorporate industry-specific terminology from the job description
+        6. Ensure all quantifiable achievements are properly highlighted with metrics
+        7. Return two versions of the resume:
+            - `updated_resume`: The final rewritten resume (as plain text)
+            - `diff_html`: A version of the resume with inline highlights using color:
+                - Additions or rewritten content should be **green**:  
+                `<span style="color:green">your added or changed text</span>`
+                - Removed content should be **red and struck through**:  
+                `<span style="color:red;text-decoration:line-through">removed text</span>`
+                - Leave unchanged lines unmarked.
+            - Keep all section headers and formatting consistent with the original resume.
+
+        ---
+
+        ### Output Format:
+
+        ```json
+        {
+        "updated_resume": "<full rewritten resume as plain text>",
+        "diff_markdown": "<HTML-colored version of the resume highlighting additions and deletions>"
+        }
+        ```
+        ---
+        ### Input:
+
+        ,**Original Resume:**
+
+        """
+            + resume_text
+            + """
+
+
+        ,**Target Job Description:**
+
+        """
+            + job_description_text
+            + """
+
+
+        ,**Analysis of Resume vs. Job Description:**
+
+        """
+            + gap_analysis_openai
+        )
+
+        # Depending on the selected model, call the appropriate function to generate the resume.
+        # If the OpenAI model is selected, it uses a temperature of 0.7 for creativity.
+        if model == "openai":
+            updated_resume_json = openai_generate(prompt, temperature = 0.7, response_format = ResumeOutput)
+        # If the Gemini model is selected, it uses a lower temperature of 0.5 for more focused results.
+        elif model == "gemini":
+            updated_resume_json = gemini_generate(prompt, temperature = 0.5)
+        else:
+            # Raise an error if an invalid model name is provided.
+            raise ValueError(f"Invalid model: {model}")
+
+        # Return the generated resume output as a dictionary.
+        return updated_resume_json
+  #+end_src
+
+  Now we can test it out:
+  #+name: debugpydantic
+  #+begin_src python :results output :exports both :tangle no
+    # Call the generate_resume function with the provided job description, resume text, and gap analysis.
+    updated_resume_json = generate_resume(job_description_text, resume_text, gap_analysis_openai, model="openai")
+    # Display the updated resume in Markdown format.
+    print(updated_resume_json.updated_resume)
+
+    print(updated_resume_json.diff_markdown)
+  #+end_src
+
+  #+RESULTS: debugpydantic
+  #+begin_example
+  ,**Jessica Brown**  
+  jessica.brown@email.com | (416) 555-7890 | linkedin.com/in/jessicabrown
+
+  ,**Summary**  
+  Digital Marketing Specialist with over 2 years of experience in planning and executing digital marketing campaigns, including SEO, SEM, social media, and email marketing. Proficient in using Google Analytics for performance measurement and reporting. Skilled in content creation, social media management, and staying informed on digital marketing trends.
+
+  ,**Experience**
+
+  ,**Digital Marketing Assistant | Brewster Coffee Co. | Toronto, ON | Jan 2022 – Present**
+  - Planned and executed digital marketing campaigns, including SEO and SEM efforts, to enhance online presence.
+  - Utilized Google Analytics to measure campaign performance and prepared detailed performance reports.
+  - Conducted keyword research and optimized content for SEO, increasing website traffic by 20%.
+  - Managed social media accounts, scheduled content, and engaged with the community, achieving a 30% growth in followers.
+  - Collaborated with designers to coordinate campaign materials, ensuring brand consistency.
+  - Conducted market research and competitor analysis to inform campaign strategies.
+  - Stayed updated on digital marketing trends to implement innovative strategies.
+
+  ,**Skills**
+  - Digital Marketing (SEO, SEM, Email Marketing)
+  - Social Media Management Tools (Hootsuite, Buffer)
+  - Google Analytics, Basic Adobe Creative Suite
+  - CRM Systems (HubSpot)
+  - Microsoft Office Suite, Google Workspace
+
+  ,**Education**  
+  ,**Bachelor of Commerce, Marketing** | Toronto Metropolitan University (formerly Ryerson University), Toronto, ON | May 2021
+  ,**Jessica Brown**  
+  jessica.brown@email.com | (416) 555-7890 | linkedin.com/in/jessicabrown
+
+  ,**Summary**  
+  <span style="color:red;text-decoration:line-through">Marketing professsional with 2 years of experience assisting in digital campaigns, content creation, and social media activities. Comfortable handling multiple tasks and providing general marketing support.</span><span style="color:green">Digital Marketing Specialist with over 2 years of experience in planning and executing digital marketing campaigns, including SEO, SEM, social media, and email marketing. Proficient in using Google Analytics for performance measurement and reporting. Skilled in content creation, social media management, and staying informed on digital marketing trends.</span>
+
+  ,**Experience**
+
+  <span style="color:red;text-decoration:line-through">**Marketing Asssistant</span><span style="color:green">**Digital Marketing Assistant</span> | Brewster Coffee Co. | Toronto, ON | Jan 2022 – Present**
+  - <span style="color:red;text-decoration:line-through">Assisted with</span><span style="color:green">Planned and executed</span> digital marketing campaigns<span style="color:green">, including SEO and SEM efforts,</span> to enhance online presence.
+  - <span style="color:green">Utilized Google Analytics to measure campaign performance and prepared detailed performance reports.</span>
+  - <span style="color:green">Conducted keyword research and optimized content for SEO, increasing website traffic by 20%.</span>
+  - <span style="color:red;text-decoration:line-through">Created blog posts and social media updates to improve audience engagement.</span>
+  - <span style="color:red;text-decoration:line-through">Managed</span><span style="color:green">Managed social media accounts, scheduled content, and engaged with the community, achieving a 30% growth in followers.</span>
+  - <span style="color:red;text-decoration:line-through">Supported coordination of marketing events.</span><span style="color:green">Collaborated with designers to coordinate campaign materials, ensuring brand consistency.</span>
+  - Conducted market research and competitor analysis<span style="color:green"> to inform campaign strategies</span>.
+  - <span style="color:green">Stayed updated on digital marketing trends to implement innovative strategies.</span>
+
+  ,**<span style="color:red;text-decoration:line-through">Skils</span><span style="color:green">Skills</span>**
+  - Digital Marketing (<span style="color:green">SEO, SEM, </span>Email Marketing)
+  - <span style="color:red;text-decoration:line-through">Social Media Tools</span><span style="color:green">Social Media Management Tools</span> (Hootsuite, Buffer)
+  - <span style="color:green">Google Analytics, Basic Adobe Creative Suite</span>
+  - <span style="color:green">CRM Systems (HubSpot)</span>
+  - Microsoft Office Suite, Google Workspace
+
+  ,**Education**  
+  ,**Bachelor of Commerce, Marketing** | <span style="color:red;text-decoration:line-through">Ryerson University (now</span><span style="color:green">Toronto Metropolitan University (formerly</span> Ryerson University) , Toronto, ON | May 2021
+  #+end_example
+
+* Generate a cover letter
+  With the newly tailored resume, let's generate a corresponding cover
+  letter. We'll use OpenAI, feeding it the tailored resume (from the previous
+  task) and the original job description. This ensures the cover letter
+  highlights the most relevant points from the improved resume.
+
+  #+name: coverletter
+  #+begin_src python :results none :exports both
+    # Define Pydantic models for structured output
+    # The CoverLetterOutput class is a Pydantic model that defines the structure of the output for the cover letter generation.
+    # It ensures that the output will contain a single field, 'cover_letter', which is a string.
+
+    class CoverLetterOutput(BaseModel):
+        cover_letter: str
+
+    # The generate_cover_letter function creates a cover letter based on the provided job description and updated resume.
+    # It takes three parameters:
+    # (1) job_description_text: A string containing the job description for the position.
+    # (2) updated_resume: A string containing the candidate's updated resume.
+    # (3) model: A string indicating which model to use for generating the cover letter (default is "openai").
+    # The function returns a dictionary containing the generated cover letter.
+
+    def generate_cover_letter(job_description_text: str, updated_resume: str, model: str = "openai") -> dict:
+        """
+        Generate a cover letter using OpenAI or Gemini.
+
+        Args:
+            job_description_text (str): The job description text.
+            updated_resume (str): The candidate's updated resume text.
+            model (str): The model to use for cover letter generation.
+
+        Returns:
+            dict: A dictionary containing the cover letter.
+        """
+
+        # Construct the prompt for the AI model, including context and instructions for writing the cover letter.
+        prompt = (
+            """
+        ### Context:
+        You are a professional career coach and expert cover letter writer.
+
+        ---
+
+        ### Instruction:
+        Write a compelling, personalized cover letter based on the **Updated Resume** and the **Target Job Description**. The letter should:
+        1. Be addressed generically (e.g., "Dear Hiring Manager")
+        2. Be no longer than 4 paragraphs
+        3. Highlight key achievements and experiences from the updated resume
+        4. Align with the responsibilities and qualifications in the job description
+        5. Reflect the applicant's enthusiasm and fit for the role
+        6. End with a confident and polite closing statement
+
+        ---
+
+        ### Output Format (JSON):
+        ```json
+        {
+        "cover_letter": "<final cover letter text>"
+        }
+        ```
+        ---
+
+        ### Input:
+
+        ,**Updated Resume:**
+
+        """
+            + updated_resume
+            + """
+        ,**Target Job Description:**
+
+        """
+            + job_description_text
+        )
+
+        # Depending on the selected model, call the appropriate function to generate the cover letter.
+        if model == "openai":
+            # Get response from OpenAI API
+            updated_cover_letter = openai_generate(prompt, temperature=0.7, response_format=CoverLetterOutput)
+        elif model == "gemini":
+            # Get response from Gemini API
+            updated_cover_letter = gemini_generate(prompt, temperature=0.5)
+        else:
+            # Raise an error if an invalid model name is provided.
+            raise ValueError(f"Invalid model: {model}")
+
+        # Return the generated cover letter as a dictionary.
+        return updated_cover_letter
+  #+end_src
+
+  Now we can test it:
+  #+name: debugcoverletter
+  #+begin_src python :results output :exports both :tangle no
+    # Call the generate_cover_letter function with the provided job description and updated resume.
+    updated_cover_letter = generate_cover_letter(job_description_text, updated_resume_json.updated_resume, model="openai")
+
+    # Display the generated cover letter in Markdown format.
+    print(updated_cover_letter.cover_letter)
+  #+end_src
+
+  This gives us:
+  #+RESULTS: debugcoverletter
+  #+begin_example
+  Dear Hiring Manager,
+
+  I am writing to express my interest in the Digital Marketing Specialist position at BrightWave Digital Agency as advertised. With a Bachelor of Commerce in Marketing and two years of hands-on experience in digital marketing at Brewster Coffee Co., I am excited about the opportunity to contribute to your team and help drive impactful campaigns for your clients.
+
+  In my current role as a Digital Marketing Assistant, I have successfully planned and executed multiple digital marketing campaigns, utilizing SEO and SEM strategies to enhance online presence. My efforts in optimizing content have resulted in a 20% increase in website traffic, and my management of social media accounts has yielded a 30% growth in followers. I am proficient in using Google Analytics for performance measurement and reporting, skills that align perfectly with the responsibilities of this role at BrightWave.
+
+  I am particularly drawn to this opportunity at BrightWave because of your commitment to leveraging innovative strategies in digital marketing. My ability to stay informed about current trends and my experience in collaborating with designers to ensure brand consistency will enable me to effectively coordinate campaign materials and contribute to your agency's success. Additionally, my familiarity with CRM systems like HubSpot and basic Adobe Creative Suite tools will be advantageous in supporting your projects.
+
+  I am eager to bring my expertise in digital marketing to BrightWave Digital Agency and contribute to the success of your clients' campaigns. Thank you for considering my application. I look forward to the opportunity to discuss how I can support your team.
+
+  Sincerely,
+
+  Jessica Brown
+  #+end_example
+
+* Unify resume and cover letter generation
+  Now that we have all the building blocks, let's create a single function,
+  run_resume_rocket, that takes the original resume and job description text and
+  performs the entire workflow: gap analysis, resume tailoring with diff
+  tracking, and cover letter generation. This makes the tool much easier to
+  reuse.
+
+  Here is our complete function:
+  #+name: resumerocket
+  #+begin_src python :results none :exports both
+    def run_resume_rocket(resume_text: str, job_description_text: str) -> tuple[str, str]:
+        """
+        Run the resume rocket workflow.
+
+        Args:
+            resume_text (str): The candidate's resume text.
+            job_description_text (str): The job description text.
+
+        Returns:
+            tuple: A tuple containing the updated resume and cover letter.
+        """
+        # Analyze the candidate's resume against the job description using OpenAI's model.
+        # This function will return a structured analysis highlighting gaps and strengths.
+        gap_analysis_openai = analyze_resume_against_job_description(job_description_text, 
+                                                                     resume_text, 
+                                                                     model="openai")
+
+        # Display the gap analysis results in Markdown format for better readability.
+        print(gap_analysis_openai)
+
+        # Print separators for clarity in the output.
+        print("\n--------------------------------")
+        print("--------------------------------\n")
+
+        # Generate an updated resume based on the job description, original resume, and gap analysis.
+        # This function will return a JSON-like object containing the updated resume and a diff markdown.
+        updated_resume_json = generate_resume(job_description_text, 
+                                              resume_text, 
+                                              gap_analysis_openai, 
+                                              model = "openai")
+
+        # Display the diff markdown which shows the changes made to the resume.
+        print(updated_resume_json.diff_markdown)
+
+        # Print separators for clarity in the output.
+        print("\n--------------------------------")
+        print("--------------------------------\n")
+
+        # Display the updated resume in Markdown format.
+        print(updated_resume_json.updated_resume)
+
+        # Print separators for clarity in the output.
+        print("\n--------------------------------")
+        print("--------------------------------\n")
+
+        # Generate a cover letter based on the job description and the updated resume.
+        # This function will return the generated cover letter.
+        updated_cover_letter = generate_cover_letter(
+            job_description_text, updated_resume_json.updated_resume, model="openai"
+        )
+
+        # Display the generated cover letter in Markdown format.
+        print(updated_cover_letter.cover_letter)
+
+        # Print separators for clarity in the output.
+        print("\n--------------------------------")
+        print("--------------------------------\n")
+
+        # Return the updated resume and the generated cover letter as a tuple.
+        return updated_resume_json.updated_resume, updated_cover_letter.cover_letter
+  #+end_src
+
+  Now we can test everything:
+  #+name: debugresumerocket
+  #+begin_src python :results output :exports both
+    # Call the run_resume_rocket function with the provided resume and job description texts.
+    resume, cover_letter = run_resume_rocket(resume_text, job_description_text)
+  #+end_src
+
+  This gives us the following output:
+  #+RESULTS: debugresumerocket
+  #+begin_example
+  Certainly! Below is a structured analysis comparing the job description for the Digital Marketing Specialist position at BrightWave Digital Agency with Jessica Brown's resume.
+
+  ---
+
+  ### 1. Key Requirements from Job Description:
+  - **Education:** Bachelor's degree in Marketing, Communications, or similar.
+  - **Experience:** 2+ years of digital marketing experience.
+  - **Skills and Tools:**
+    - Familiarity with SEO, SEM, Google Analytics, and social media.
+    - Ability to interpret basic marketing data.
+    - Good communication and writing skills.
+    - Knowledge of CRM systems (e.g., HubSpot) helpful.
+    - Experience with Adobe Creative Suite is beneficial.
+  - **Responsibilities:**
+    - Assist in planning and executing digital marketing campaigns (SEO, SEM, social media, email).
+    - Use Google Analytics for performance measurement.
+    - Support social media management including content scheduling and community engagement.
+    - Perform keyword research and assist in optimizing content for SEO.
+    - Work with designers for campaign material coordination.
+    - Stay informed on digital marketing trends.
+
+  ### 2. Relevant Experience in Resume:
+  - **Education:** Bachelor of Commerce, Marketing from Ryerson University.
+  - **Experience:**
+    - 2 years of experience as a Marketing Assistant handling digital campaigns at Brewster Coffee Co.
+    - Tasks included creating blog posts and social media updates, managing social media accounts, and supporting marketing events.
+  - **Skills and Tools:**
+    - Basic SEO and email marketing skills.
+    - Experience with social media tools like Hootsuite and Buffer.
+    - Basic knowledge of Adobe Photoshop.
+    - Proficient in Microsoft Office Suite and Google Workspace.
+
+  ### 3. Gaps/Mismatches:
+  - **SEM and Google Analytics:** The resume does not mention SEM experience or proficiency with Google Analytics, which are key requirements for the job.
+  - **CRM Systems:** No mention of experience or knowledge of CRM systems such as HubSpot.
+  - **Adobe Creative Suite:** While basic knowledge of Adobe Photoshop is noted, broader experience with Adobe Creative Suite is beneficial but not highlighted.
+  - **Campaign Coordination:** Although Jessica has experience supporting events, specific experience coordinating with designers for campaign materials isn't mentioned.
+  - **Keyword Research:** No explicit mention of conducting keyword research or content optimization for SEO.
+
+  ### 4. Potential Strengths:
+  - **Content Creation:** Strong experience in content creation with blog posts and social media updates, which can add value to campaign efforts.
+  - **Social Media Management:** Proven ability to manage and grow social media followings, which is vital for community engagement tasks.
+  - **Market Research and Competitor Analysis:** Experience in conducting market research and competitor analysis can provide valuable insights for digital marketing strategies.
+  - **Multitasking and Support:** Demonstrated ability to handle multiple tasks and provide general marketing support, which could be an asset in a dynamic agency environment.
+
+  ---
+
+  This analysis should help Jessica Brown understand her alignment with the Digital Marketing Specialist role and identify areas for improvement in her resume to better match the job description at BrightWave Digital Agency.
+
+  --------------------------------
+  --------------------------------
+
+  ,**Jessica Brown**  
+  jessica.brown@email.com | (416) 555-7890 | linkedin.com/in/jessicabrown
+
+  ,**Summary**  
+  <span style="color:red;text-decoration:line-through">Marketing professional with 2 years of experience assisting in digital campaigns, content creation, and social media activities. Comfortable handling multiple tasks and providing general marketing support.</span><span style="color:green">Digital Marketing Specialist with over 2 years of experience in planning and executing comprehensive digital marketing campaigns. Proficient in SEO, SEM, and social media management with a proven ability to interpret marketing data using Google Analytics. Strong communication and collaboration skills with an emphasis on content creation and community engagement.</span>
+
+  ,**Experience**
+
+  ,**Marketing Assistant | Brewster Coffee Co. | Toronto, ON | Jan 2022 – Present**
+  <span style="color:red;text-decoration:line-through">- Assisted with digital marketing campaigns including email and social media.</span>
+  <span style="color:green">- Played an active role in planning and executing digital marketing campaigns, including SEO, SEM, social media, and email marketing strategies.</span>
+  <span style="color:green">- Utilized Google Analytics to measure campaign performance and prepared insightful performance reports.</span>
+  <span style="color:red;text-decoration:line-through">- Created blog posts and social media updates to improve audience engagement.</span>
+  <span style="color:green">- Conducted keyword research and optimized content to enhance SEO results.</span>
+  <span style="color:red;text-decoration:line-through">- Managed social media accounts and grew follower numbers.</span>
+  <span style="color:green">- Managed content scheduling and community engagement across social media platforms, increasing follower numbers by 20% in one year.</span>
+  <span style="color:red;text-decoration:line-through">- Supported coordination of marketing events.</span>
+  <span style="color:green">- Collaborated with designers to coordinate campaign materials, ensuring cohesive branding and messaging.</span>
+  - <span style="color:red;text-decoration:line-through">Conducted</span><span style="color:green">Engaged in</span> market research and competitor analysis <span style="color:green">to inform strategic decisions</span>.
+
+  ,**<span style="color:red;text-decoration:line-through">Skils</span>**<span style="color:green">Skills</span>**
+  - Digital Marketing <span style="color:red;text-decoration:line-through">(SEO basics, Email Marketing)</span><span style="color:green">: SEO, SEM, Email Marketing</span>
+  <span style="color:green">- Analytical Tools: Google Analytics</span>
+  - Social Media <span style="color:red;text-decoration:line-through">Tools</span><span style="color:green">Management</span> <span style="color:red;text-decoration:line-through">(</span><span style="color:green">:</span>Hootsuite, Buffer<span style="color:red;text-decoration:line-through">)</span>
+  <span style="color:green">- CRM Systems: Basic knowledge of HubSpot</span>
+  <span style="color:green">- Adobe Creative Suite: Basic knowledge of Photoshop</span>
+  - <span style="color:red;text-decoration:line-through">Microsoft</span><span style="color:green">Office Tools: Microsoft</span> Office Suite, Google Workspace
+
+  ,**Education**  
+  ,**Bachelor of Commerce, Marketing** | Ryerson University (now Toronto Metropolitan University), Toronto, ON | May 2021
+
+  --------------------------------
+  --------------------------------
+
+  ,**Jessica Brown**  
+  jessica.brown@email.com | (416) 555-7890 | linkedin.com/in/jessicabrown
+
+  ,**Summary**  
+  Digital Marketing Specialist with over 2 years of experience in planning and executing comprehensive digital marketing campaigns. Proficient in SEO, SEM, and social media management with a proven ability to interpret marketing data using Google Analytics. Strong communication and collaboration skills with an emphasis on content creation and community engagement.
+
+  ,**Experience**
+
+  ,**Marketing Assistant | Brewster Coffee Co. | Toronto, ON | Jan 2022 – Present**
+  - Played an active role in planning and executing digital marketing campaigns, including SEO, SEM, social media, and email marketing strategies.
+  - Utilized Google Analytics to measure campaign performance and prepared insightful performance reports.
+  - Conducted keyword research and optimized content to enhance SEO results.
+  - Managed content scheduling and community engagement across social media platforms, increasing follower numbers by 20% in one year.
+  - Collaborated with designers to coordinate campaign materials, ensuring cohesive branding and messaging.
+  - Engaged in market research and competitor analysis to inform strategic decisions.
+
+  ,**Skills**
+  - Digital Marketing: SEO, SEM, Email Marketing
+  - Analytical Tools: Google Analytics
+  - Social Media Management: Hootsuite, Buffer
+  - CRM Systems: Basic knowledge of HubSpot
+  - Adobe Creative Suite: Basic knowledge of Photoshop
+  - Office Tools: Microsoft Office Suite, Google Workspace
+
+  ,**Education**  
+  ,**Bachelor of Commerce, Marketing** | Ryerson University (now Toronto Metropolitan University), Toronto, ON | May 2021
+
+  --------------------------------
+  --------------------------------
+
+  Dear Hiring Manager,
+
+  I am writing to express my interest in the Digital Marketing Specialist position at BrightWave Digital Agency, as advertised. With over two years of experience in digital marketing and a strong background in SEO, SEM, and social media management, I am excited about the opportunity to contribute to your team and help drive impactful campaigns for your clients.
+
+  In my current role as a Marketing Assistant at Brewster Coffee Co., I have successfully planned and executed a variety of digital marketing campaigns, significantly increasing our social media engagement by 20% over the past year. My proficiency in using Google Analytics to measure campaign performance and prepare insightful reports aligns perfectly with the responsibilities outlined in your job description. Additionally, my experience in conducting keyword research and optimizing content for SEO will enable me to effectively support BrightWave's campaign strategies.
+
+  Collaborating with designers to ensure cohesive branding and messaging has been a key part of my role, and I am eager to bring this collaborative spirit to BrightWave. I am also committed to staying informed about the latest digital marketing trends to ensure that our strategies remain innovative and effective.
+
+  I am enthusiastic about the possibility of joining BrightWave Digital Agency and contributing to the success of your clients through creative and data-driven marketing strategies. Thank you for considering my application. I look forward to the opportunity to discuss how my skills and experiences align with the needs of your team.
+
+  Sincerely,
+
+  Jessica Brown
+
+  --------------------------------
+  --------------------------------
+  #+end_example
+
+  The above run also gave us a new resume and cover letter. Let's see what each
+  of these look like:
+  #+name: printresume
+  #+begin_src python :results output :exports both
+    print(resume)
+  #+end_src
+
+  This gives us the following resume:
+  #+RESULTS: printresume
+  #+begin_example
+  ,**Jessica Brown**  
+  jessica.brown@email.com | (416) 555-7890 | linkedin.com/in/jessicabrown
+
+  ,**Summary**  
+  Dynamic Digital Marketing Specialist with over 2 years of experience in executing digital campaigns, content creation, and social media management. Proficient in leveraging SEO, SEM, and Google Analytics to drive engagement and optimize marketing strategies. Adept at collaborating with designers and staying current with digital trends to enhance campaign effectiveness.
+
+  ,**Experience**
+
+  ,**Marketing Assistant | Brewster Coffee Co. | Toronto, ON | Jan 2022 – Present**  
+  - Planned and executed digital marketing campaigns, including SEO, SEM, social media, and email marketing, resulting in a 20% increase in online engagement.
+  - Utilized Google Analytics to measure campaign performance and prepared basic performance reports to inform strategy decisions.
+  - Managed social media accounts, grew follower numbers by 30%, and enhanced community engagement through strategic content scheduling.
+  - Conducted keyword research and optimized content for SEO, improving organic search rankings.
+  - Collaborated with designers to coordinate and produce compelling campaign materials.
+  - Conducted market research and competitor analysis to inform marketing strategies and stayed informed about current digital marketing trends.
+
+  ,**Skills**
+  - Digital Marketing: SEO, SEM, Email Marketing, Content Optimization
+  - Analytical Tools: Google Analytics, HubSpot CRM
+  - Social Media Tools: Hootsuite, Buffer
+  - Design Software: Adobe Creative Suite, Microsoft Office Suite, Google Workspace
+  - Strong communication and writing skills
+
+  ,**Education**  
+  ,**Bachelor of Commerce, Marketing** | Ryerson University (now Toronto Metropolitan University), Toronto, ON | May 2021
+  #+end_example
+
+  We can also check the cover letter:
+  #+name: printcoverletter
+  #+begin_src python :results output :exports both
+    print(cover_letter)
+  #+end_src
+
+  This gives us:
+  #+RESULTS: printcoverletter
+  #+begin_example
+  Dear Hiring Manager,
+
+  I am writing to express my interest in the Digital Marketing Specialist position at BrightWave Digital Agency. With a Bachelor of Commerce in Marketing and over two years of hands-on experience in executing digital marketing campaigns, I am excited about the opportunity to contribute to your team and help drive impactful marketing strategies for your clients.
+
+  In my current role as a Marketing Assistant at Brewster Coffee Co., I have successfully planned and executed various digital marketing campaigns, including SEO, SEM, social media, and email marketing, which resulted in a 20% increase in online engagement. My proficiency in Google Analytics has enabled me to measure campaign performance effectively and prepare reports that guide strategic decisions. I also have a proven track record of growing social media followers by 30% and enhancing community engagement through strategic content scheduling, aligning well with the responsibilities outlined in your job description.
+
+  My collaborative approach with designers to produce compelling campaign materials and my ability to stay informed about current digital marketing trends further enhance my fit for your team. Additionally, my experience with HubSpot CRM and Adobe Creative Suite will help me contribute effectively to your campaign management processes.
+
+  I am enthusiastic about the opportunity to bring my expertise in digital marketing to BrightWave Digital Agency and support your mission to create outstanding campaigns for a diverse range of clients. Thank you for considering my application. I look forward to the possibility of discussing how I can contribute to your team.
+
+  Sincerely,
+
+  Jessica Brown
+  #+end_example
+
+* Summary
+  That conclude out resume and cover letter builder project. In this section we
+  learned that:
+  - Pydantic is a powerful library that can perform data validation and output
+    parsing and ensure consistent, well-structured, and robust outputs.
+  - Text change tracking features can be implemented using a proper prompt.
+  - A powerful application for resume enhancement can be developed in one day
+    with the power of LLMs such as gpt-4.0 and Gemini.

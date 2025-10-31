@@ -214,9 +214,306 @@ Output:
 Provide a revised and improved version of the resume that is well-formatted. Only return the updated resume.
 """
 
-# Get response from OpenAI API
-openai_output = openai_generate(prompt, temperature = 0.7)
+# Prompt to analyze the resume against the job description
 
-# Display the results
-print("#### OpenAI Response:")
-print(openai_output)
+def analyze_resume_against_job_description(job_description_text: str, resume_text: str, model: str = "openai") -> str:
+    """
+    Analyze the resume against the job description and return a structured comparison.
+
+    Args:
+        job_description_text (str): The job description text.
+        resume_text (str): The candidate's resume text.
+        model (str): The model to use for analysis ("openai" or "gemini").
+
+    Returns:
+        str: A clear, structured comparison of the resume and job description.
+    """
+    # This prompt instructs the AI to act as a career advisor and analyze how well the resume matches the job description
+    # It asks for a structured analysis with 4 specific sections: requirements, matches, gaps, and strengths
+    prompt = f"""
+    Context:
+    You are a career advisor and resume expert. Your task is to analyze a candidate's resume against a specific job description to assess alignment and identify areas for improvement.
+
+    Instruction:
+    Review the provided Job Description and Resume. Identify key skills, experiences, and qualifications in the Job Description and compare them to what's present in the Resume. Provide a structured analysis with the following sections:
+    1. **Key Requirements from Job Description:** List the main skills, experiences, and qualifications sought by the employer.
+    2. **Relevant Experience in Resume:** List the skills and experiences from the resume that match or align closely with the job requirements.
+    3. **Gaps/Mismatches:** Identify important skills or qualifications from the Job Description that are missing, unclear, or underrepresented in the Resume.
+    4. **Potential Strengths:** Highlight any valuable skills, experiences, or accomplishments in the resume that are not explicitly requested in the job description but could strengthen the application.
+
+    Job Description:
+
+    {job_description_text}
+
+    Resume:
+
+    {resume_text}
+
+    Output:
+    Return a clear, structured comparison with the four sections outlined above.
+    """
+
+    # This conditional block selects which AI model to use based on the 'model' parameter
+    if model == "openai":
+        # Uses OpenAI's model to generate the gap analysis with moderate creativity (temperature=0.7)
+        gap_analysis = openai_generate(prompt, temperature=0.7)
+    elif model == "gemini":
+        # Uses Google's Gemini model with less creativity (temperature=0.5) for more focused results
+        gap_analysis = gemini_generate(prompt, temperature=0.5)
+    else:
+        # Raises an error if an invalid model name is provided
+        raise ValueError(f"Invalid model: {model}")
+
+    # Returns the generated gap analysis text
+    return gap_analysis
+
+# Define Pydantic models for structured output
+# The ResumeOutput class is a Pydantic model that defines the structure of the output
+# for the resume generation function. It includes two fields:
+# (1) updated_resume: A string that contains the final rewritten resume.
+# (2) diff_markdown: A string containing the resume's HTML-coloured version highlighting additions and deletions.
+
+class ResumeOutput(BaseModel):
+    updated_resume: str
+    diff_markdown: str
+
+
+def generate_resume(
+    job_description_text: str, resume_text: str, gap_analysis_openai: str, model: str = "openai") -> dict:
+    """
+    Generate a tailored resume using OpenAI or Gemini.
+
+    Args:
+        job_description_text (str): The job description text.
+        resume_text (str): The candidate's resume text.
+        gap_analysis_openai (str): The gap analysis result from OpenAI.
+        model (str): The model to use for resume generation.
+
+    Returns:
+        dict: A dictionary containing the updated resume and diff markdown.
+    """
+    # Construct the prompt for the AI model to generate the tailored resume.
+    # The prompt includes context, instructions, and input data (original resume,
+    # target job description, and gap analysis).
+    prompt = (
+        """
+    ### Context:
+    You are an expert resume writer and editor. Your goal is to rewrite the original resume to match the target job description, using the provided tailoring suggestions and analysis.
+
+    ---
+
+    ### Instruction:
+    1. Rewrite the entire resume to best match the **Target Job Description** and **Gap Analysis to the Job Description**.
+    2. Improve clarity, add job-relevant keywords, and quantify achievements.
+    3. Specifically address the gaps identified in the analysis by:
+       - Adding missing skills and technologies mentioned in the job description
+       - Reframing experience to highlight relevant accomplishments
+       - Strengthening sections that were identified as weak in the analysis
+    4. Prioritize addressing the most critical gaps first
+    5. Incorporate industry-specific terminology from the job description
+    6. Ensure all quantifiable achievements are properly highlighted with metrics
+    7. Return two versions of the resume:
+        - `updated_resume`: The final rewritten resume (as plain text)
+        - `diff_html`: A version of the resume with inline highlights using color:
+            - Additions or rewritten content should be **green**:  
+            `<span style="color:green">your added or changed text</span>`
+            - Removed content should be **red and struck through**:  
+            `<span style="color:red;text-decoration:line-through">removed text</span>`
+            - Leave unchanged lines unmarked.
+        - Keep all section headers and formatting consistent with the original resume.
+
+    ---
+
+    ### Output Format:
+
+    ```json
+    {
+    "updated_resume": "<full rewritten resume as plain text>",
+    "diff_markdown": "<HTML-colored version of the resume highlighting additions and deletions>"
+    }
+    ```
+    ---
+    ### Input:
+
+    **Original Resume:**
+
+    """
+        + resume_text
+        + """
+
+
+    **Target Job Description:**
+
+    """
+        + job_description_text
+        + """
+
+
+    **Analysis of Resume vs. Job Description:**
+
+    """
+        + gap_analysis_openai
+    )
+
+    # Depending on the selected model, call the appropriate function to generate the resume.
+    # If the OpenAI model is selected, it uses a temperature of 0.7 for creativity.
+    if model == "openai":
+        updated_resume_json = openai_generate(prompt, temperature = 0.7, response_format = ResumeOutput)
+    # If the Gemini model is selected, it uses a lower temperature of 0.5 for more focused results.
+    elif model == "gemini":
+        updated_resume_json = gemini_generate(prompt, temperature = 0.5)
+    else:
+        # Raise an error if an invalid model name is provided.
+        raise ValueError(f"Invalid model: {model}")
+
+    # Return the generated resume output as a dictionary.
+    return updated_resume_json
+
+# Define Pydantic models for structured output
+# The CoverLetterOutput class is a Pydantic model that defines the structure of the output for the cover letter generation.
+# It ensures that the output will contain a single field, 'cover_letter', which is a string.
+
+class CoverLetterOutput(BaseModel):
+    cover_letter: str
+
+# The generate_cover_letter function creates a cover letter based on the provided job description and updated resume.
+# It takes three parameters:
+# (1) job_description_text: A string containing the job description for the position.
+# (2) updated_resume: A string containing the candidate's updated resume.
+# (3) model: A string indicating which model to use for generating the cover letter (default is "openai").
+# The function returns a dictionary containing the generated cover letter.
+
+def generate_cover_letter(job_description_text: str, updated_resume: str, model: str = "openai") -> dict:
+    """
+    Generate a cover letter using OpenAI or Gemini.
+
+    Args:
+        job_description_text (str): The job description text.
+        updated_resume (str): The candidate's updated resume text.
+        model (str): The model to use for cover letter generation.
+
+    Returns:
+        dict: A dictionary containing the cover letter.
+    """
+
+    # Construct the prompt for the AI model, including context and instructions for writing the cover letter.
+    prompt = (
+        """
+    ### Context:
+    You are a professional career coach and expert cover letter writer.
+
+    ---
+
+    ### Instruction:
+    Write a compelling, personalized cover letter based on the **Updated Resume** and the **Target Job Description**. The letter should:
+    1. Be addressed generically (e.g., "Dear Hiring Manager")
+    2. Be no longer than 4 paragraphs
+    3. Highlight key achievements and experiences from the updated resume
+    4. Align with the responsibilities and qualifications in the job description
+    5. Reflect the applicant's enthusiasm and fit for the role
+    6. End with a confident and polite closing statement
+
+    ---
+
+    ### Output Format (JSON):
+    ```json
+    {
+    "cover_letter": "<final cover letter text>"
+    }
+    ```
+    ---
+
+    ### Input:
+
+    **Updated Resume:**
+
+    """
+        + updated_resume
+        + """
+    **Target Job Description:**
+
+    """
+        + job_description_text
+    )
+
+    # Depending on the selected model, call the appropriate function to generate the cover letter.
+    if model == "openai":
+        # Get response from OpenAI API
+        updated_cover_letter = openai_generate(prompt, temperature=0.7, response_format=CoverLetterOutput)
+    elif model == "gemini":
+        # Get response from Gemini API
+        updated_cover_letter = gemini_generate(prompt, temperature=0.5)
+    else:
+        # Raise an error if an invalid model name is provided.
+        raise ValueError(f"Invalid model: {model}")
+
+    # Return the generated cover letter as a dictionary.
+    return updated_cover_letter
+
+def run_resume_rocket(resume_text: str, job_description_text: str) -> tuple[str, str]:
+    """
+    Run the resume rocket workflow.
+
+    Args:
+        resume_text (str): The candidate's resume text.
+        job_description_text (str): The job description text.
+
+    Returns:
+        tuple: A tuple containing the updated resume and cover letter.
+    """
+    # Analyze the candidate's resume against the job description using OpenAI's model.
+    # This function will return a structured analysis highlighting gaps and strengths.
+    gap_analysis_openai = analyze_resume_against_job_description(job_description_text, 
+                                                                 resume_text, 
+                                                                 model="openai")
+
+    # Display the gap analysis results in Markdown format for better readability.
+    print(gap_analysis_openai)
+
+    # Print separators for clarity in the output.
+    print("\n--------------------------------")
+    print("--------------------------------\n")
+
+    # Generate an updated resume based on the job description, original resume, and gap analysis.
+    # This function will return a JSON-like object containing the updated resume and a diff markdown.
+    updated_resume_json = generate_resume(job_description_text, 
+                                          resume_text, 
+                                          gap_analysis_openai, 
+                                          model = "openai")
+
+    # Display the diff markdown which shows the changes made to the resume.
+    print(updated_resume_json.diff_markdown)
+
+    # Print separators for clarity in the output.
+    print("\n--------------------------------")
+    print("--------------------------------\n")
+
+    # Display the updated resume in Markdown format.
+    print(updated_resume_json.updated_resume)
+
+    # Print separators for clarity in the output.
+    print("\n--------------------------------")
+    print("--------------------------------\n")
+
+    # Generate a cover letter based on the job description and the updated resume.
+    # This function will return the generated cover letter.
+    updated_cover_letter = generate_cover_letter(
+        job_description_text, updated_resume_json.updated_resume, model="openai"
+    )
+
+    # Display the generated cover letter in Markdown format.
+    print(updated_cover_letter.cover_letter)
+
+    # Print separators for clarity in the output.
+    print("\n--------------------------------")
+    print("--------------------------------\n")
+
+    # Return the updated resume and the generated cover letter as a tuple.
+    return updated_resume_json.updated_resume, updated_cover_letter.cover_letter
+
+# Call the run_resume_rocket function with the provided resume and job description texts.
+resume, cover_letter = run_resume_rocket(resume_text, job_description_text)
+
+print(resume)
+
+print(cover_letter)
