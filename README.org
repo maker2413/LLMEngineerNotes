@@ -10,12 +10,13 @@ To begin with it can helpful to install the following tools:
 
 This course was broken up into days and I have notes on the following days:
 - *Section 1*: Closed Source
-  - [[./Day1/README.org][Day 1]]: Character AI Chatbot
-  - [[./Day2/README.org][Day 2]]: AI Calorie Tracker
-  - [[./Day3/README.org][Day 3]]: Adaptive AI Tutor
-  - [[./Day4/README.org][Day 4]]: Building landing pages using AI
+  - [[./Day01/README.org][Day 1]]: Character AI Chatbot
+  - [[./Day02/README.org][Day 2]]: AI Calorie Tracker
+  - [[./Day03/README.org][Day 3]]: Adaptive AI Tutor
+  - [[./Day04/README.org][Day 4]]: Building landing pages using AI
 - *Section 2*: Open Source
-  - [[./Day5/README.org][Day 5]]: Hugging Face
-  - [[./Day6/README.org][Day 6]]: Hugging Face Part 2
-  - [[./Day7/README.org][Day 7]]: RAG & LangChain
-  - [[./Day8/README.org][Day 8]]: Pydantic
+  - [[./Day05/README.org][Day 5]]: Hugging Face
+  - [[./Day06/README.org][Day 6]]: Hugging Face Part 2
+  - [[./Day07/README.org][Day 7]]: RAG & LangChain
+  - [[./Day08/README.org][Day 8]]: Pydantic
+  - [[./Day09/README.org][Day 9]]: Fine Tuning

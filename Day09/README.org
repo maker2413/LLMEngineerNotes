@@ -1,0 +1,22 @@
+#+TITLE: Day 9
+#+PROPERTY: header-args:python :session day9
+#+PROPERTY: header-args:python+ :tangle main.py
+#+PROPERTY: header-args:python+ :results value
+#+PROPERTY: header-args:python+ :shebang "#!/usr/bin/env python"
+
+In our previous projects, we used pre-trained LLMs off-the-shelf models. Now,
+let's dive into fine-tuning pre-trained LLMs to perform exceptionally well on a
+specific task and dataset.
+
+#+BEGIN_SRC elisp :exports none :results none
+  (setq org-babel-python-command (concat
+                                  (file-name-directory (or load-file-name (buffer-file-name)))
+                                  ".venv/bin/python"))
+#+END_SRC
+
+#+begin_src python :exports none :results none
+  # This file was generated from the README.org found in this directory
+#+end_src
+
+In this section we are going to learn a super powerful library called Pydantic
+that allows us to perform output validation.
