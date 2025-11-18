@@ -18,5 +18,30 @@ specific task and dataset.
   # This file was generated from the README.org found in this directory
 #+end_src
 
-In this section we are going to learn a super powerful library called Pydantic
-that allows us to perform output validation.
+In this section we are going to perform fine tuning of LLMs using techniques
+known as ~PEFT~ or parameter efficient fine tuning and ~LoRA~ or low rank
+adaptation. Using fine tuning methods like these we will see how easy it can be
+to take an open source model like Llama and train it in specific techniques.
+
+Fine tuning refers to the process of adapting a pre-trained LLM to perform a
+specific task or address a particular domain using a smaller, task-specific
+dataset. Fine tuning adjusts the model's weights to better align it with the
+desired outcomes for the new use case, leveraging the general knowledge the
+model already acquired during its initial training.
+
+An good example of this would be: A healthcare company fine-tunes a pre-trained
+model on medical reports and patient notes, enabling it to generate accurate,
+coherent patient reports trailored for healthcare professionals.
+
+* Key learning outcomes
+  This section will have us:
+  - Learn when and why to fine-tune pre-trained models to adapt them to specific
+    tasks or specialized domains.
+  - Understand how parameter-efficient fine-tuning methods like LoRA make it
+    possible to adapt large models using limited hardware, such as Colab GPUs.
+  - Use tools like Hugging Face's trl and SFTTrainer to fine-tune transformer
+    models for supervised learning tasks such as classification.
+  - Prepare datasets in the correct format for Hugging Face fine-tuning
+    pipelines.
+  - Evaluate model performance by calculating accuracy, precision, recall, and
+    F1-score using scikit-learn library.
